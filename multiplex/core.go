@@ -110,32 +110,30 @@ func (s ServiceCore) SetRouter(controller *ServiceController) {
 }
 
 // Set number of Process routines the service should use to handle requests.
+// A call made while routines from an earlier call are still starting or exiting also takes effect.
 func (s ServiceCore) SetWorker(workerCount uint64) {
 	s.i.WorkerCounter.Lock()
-	defer s.i.WorkerCounter.Unlock()
-	if s.i.WorkerCounter.ValueNoLock() != s.i.WorkerCount {
-		return
+	current := s.i.WorkerCount
+	for i := current; i < workerCount; i++ {
+		s.i.WorkerID++
+		go s.process(s.i.WorkerID)
 	}
-	if workerCount > s.i.WorkerCounter.ValueNoLock() {
-		for i := s.i.WorkerCounter.ValueNoLock(); i < workerCount; i++ {
-			s.i.WorkerID++
-			go s.process(s.i.WorkerID)
+	s.i.WorkerCount = workerCount
+	s.i.WorkerCounter.Unlock()
+
+	// Send after unlocking: a send blocks while MainChan is full, and the routines that would drain it need this lock to start.
+	for i := current; i > workerCount; i-- {
+		cmd := &ServiceMessage{
+			Command: "exit",
 		}
-		s.i.WorkerCount = workerCount
-	}
-	if workerCount < s.i.WorkerCounter.ValueNoLock() {
-		for i := s.i.WorkerCounter.ValueNoLock(); i > workerCount; i-- {
-			cmd := &ServiceMessage{
-				Command: "exit",
-			}
-			s.i.MainChan <- cmd
-		}
-		s.i.WorkerCount = workerCount
+		s.i.MainChan <- cmd
 	}
 }
 
 // Return number of Process routines the service is managing.
 func (s ServiceCore) WorkerCount() uint64 {
+	s.i.WorkerCounter.Lock()
+	defer s.i.WorkerCounter.Unlock()
 	return s.i.WorkerCount
 }
 

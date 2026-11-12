@@ -31,6 +31,9 @@ import (
 	"github.com/tforce-io/tf-golib/random/securerng"
 )
 
+// Bounds each wait for workers to take messages, so a missing worker fails the test instead of hanging until go test's timeout.
+const workerTakeTimeout = 5 * time.Second
+
 func TestServiceCore_ServiceID(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewRandomService(logger)
@@ -55,6 +58,50 @@ func TestServiceCore_Worker(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	svc.SetWorker(10)
 	assert.Equal(t, uint64(10), svc.WorkerCount(), "mismatch worker count")
+}
+
+func TestServiceCore_SetWorker_GrowWhileStarting(t *testing.T) {
+	svc := NewHoldService(diag.NewDebugLogger(10))
+	t.Cleanup(func() { svc.SetWorker(0) })
+	release := make(chan struct{})
+	defer close(release)
+
+	svc.SetWorker(1)
+	svc.SetWorker(2)
+
+	assert.Equal(t, uint64(2), svc.WorkerCount(), "mismatch worker count")
+	requireTaken(t, svc, 2, release)
+}
+
+func TestServiceCore_SetWorker_GrowWhileStopping(t *testing.T) {
+	svc := NewHoldService(diag.NewDebugLogger(10))
+	t.Cleanup(func() { svc.SetWorker(0) })
+	release := make(chan struct{})
+	svc.SetWorker(2)
+	requireTaken(t, svc, 2, release)
+
+	svc.SetWorker(0)
+	svc.SetWorker(1)
+	close(release)
+
+	assert.Equal(t, uint64(1), svc.WorkerCount(), "mismatch worker count")
+	requireTaken(t, svc, 1, release)
+}
+
+func TestServiceCore_WorkerCount_DuringSetWorker(t *testing.T) {
+	svc := NewHoldService(diag.NewDebugLogger(10))
+	t.Cleanup(func() { svc.SetWorker(0) })
+	set := make(chan struct{})
+
+	go func() {
+		defer close(set)
+		svc.SetWorker(3)
+	}()
+	during := svc.WorkerCount()
+	<-set
+
+	assert.Contains(t, []uint64{0, 3}, during, "worker count read during SetWorker")
+	assert.Equal(t, uint64(3), svc.WorkerCount(), "mismatch worker count")
 }
 
 func TestServiceCore_Exec(t *testing.T) {
@@ -117,6 +164,28 @@ func (s *HashService) coreProcessHook(workerID uint64, msg *ServiceMessage) *Hoo
 	return &HookState{Handled: true}
 }
 
+// HoldService keeps the worker that takes a message until the message's release channel
+// is closed, and passes "exit" on, so lowering the worker count stops workers.
+type HoldService struct {
+	ServiceCore
+	i *ServiceCoreInternal
+}
+
+func NewHoldService(logger diag.Logger) *HoldService {
+	svc := &HoldService{}
+	svc.i = svc.InitServiceCore("Hold", logger, svc.coreProcessHook)
+	return svc
+}
+
+func (s *HoldService) coreProcessHook(workerID uint64, msg *ServiceMessage) *HookState {
+	if msg.Command == "exit" {
+		return &HookState{Handled: false}
+	}
+	msg.Params["taken"].(chan struct{}) <- struct{}{}
+	<-msg.Params["release"].(chan struct{})
+	return &HookState{Handled: true}
+}
+
 type RandomService struct {
 	ServiceCore
 	i *ServiceCoreInternal
@@ -151,4 +220,21 @@ func (s *ShutdownService) coreProcessHook(workerID uint64, msg *ServiceMessage) 
 	time.Sleep(time.Duration(timeout))
 	s.Dispatch("", "exit", ExecParams{})
 	return &HookState{Handled: true}
+}
+
+// Queue count messages, each keeping the worker that takes it until release is closed, and fails the test unless workers take all of them;
+// before release is closed, that needs count workers running at once.
+func requireTaken(t *testing.T, svc Service, count int, release chan struct{}) {
+	t.Helper()
+	taken := make(chan struct{}, count)
+	for i := 0; i < count; i++ {
+		svc.Exec("hold", ExecParams{"taken": taken, "release": release})
+	}
+	for i := 0; i < count; i++ {
+		select {
+		case <-taken:
+		case <-time.After(workerTakeTimeout):
+			t.Fatalf("workers took %d of %d messages", i, count)
+		}
+	}
 }
