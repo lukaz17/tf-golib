@@ -63,6 +63,7 @@ When a language's established idiom contradicts a principle below, follow the id
 - Never write comment noise: redundant restatements, change journals, attributions, banner or position markers, closing-brace labels, and commented-out code.
 - Never delete or reword comments a tool reads (shebangs, encoding lines, license and SPDX headers, build and compiler directives, suppressions, doctests, generated-file headers).
 <!-- Project-specific / Comments -->
+- Keep a function's doc comment at the level of intent: say what the function achieves and what a caller must know, never how it works; do not walk through its steps, branches, or calls, since the body already shows them.
 
 ### Errors
 
@@ -123,6 +124,7 @@ When a language's established idiom contradicts a principle below, follow the id
 - Refer to [Go doc conventions](https://go.dev/doc/comment).
 - State a package's purpose once, in its doc comment; do not restate it per file.
 <!-- Project-specific / Go-Comments -->
+- Start a function's doc comment with a verb that summarizes its intent, not with the function name; this is an exception to the Go doc conventions above.
 
 ### Go-Errors
 

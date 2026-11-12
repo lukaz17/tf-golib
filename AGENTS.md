@@ -1,4 +1,4 @@
-# AGENTS.md - T-Force Go Library
+# AGENTS.md - TFgolib
 
 This file is the entry point for AI agents working on this repository. It holds the rules for every task in [Core Rules](#core-rules) and [Anti-Loopholes](#anti-loopholes), and indexes the detailed topic guides in the `.agents/` folder and the project memory in the `.attunic/` folder. Read each file in [Topics](#topics) when its `When to read` entry applies.
 

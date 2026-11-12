@@ -10,4 +10,4 @@ languages:
 - go
 license: MIT
 license_header: Full
-project_name: T-Force Go Library
+project_name: TFgolib
