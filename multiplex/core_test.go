@@ -45,8 +45,47 @@ func TestServiceCore_Router(t *testing.T) {
 	svc := NewRandomService(logger)
 	assert.Nil(t, svc.Router(), "unexpected value for router, must be nil")
 	controller := NewServiceController(logger)
-	svc.SetRouter(controller)
+	isSet := svc.SetRouter(controller)
+	assert.True(t, isSet)
 	assert.NotNil(t, svc.Router(), "unexpected value for router, must not be nil")
+}
+
+func TestServiceCore_SetRouter_RefusedWithWorkers(t *testing.T) {
+	tests := []struct {
+		name  string
+		start func(t *testing.T, svc *HoldService, release chan struct{})
+	}{
+		{
+			name:  "workers started",
+			start: func(t *testing.T, svc *HoldService, release chan struct{}) { svc.SetWorker(1) },
+		},
+		{
+			name: "workers still exiting",
+			start: func(t *testing.T, svc *HoldService, release chan struct{}) {
+				svc.SetWorker(1)
+				requireTaken(t, svc, 1, release)
+				svc.SetWorker(0)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := diag.NewDebugLogger(10)
+			svc := NewHoldService(logger)
+			t.Cleanup(func() { svc.SetWorker(0) })
+			release := make(chan struct{})
+			defer close(release)
+			controller := NewServiceController(diag.NewDebugLogger(10))
+			svc.SetRouter(controller)
+			tt.start(t, svc, release)
+
+			isSet := svc.SetRouter(NewServiceController(diag.NewDebugLogger(10)))
+
+			assert.False(t, isSet)
+			assert.Same(t, controller.Router(), svc.Router(), "router must be unchanged")
+			assert.Contains(t, logger.AllMessages(), "WARN Hold: Ignored router change: service has workers.")
+		})
+	}
 }
 
 func TestServiceCore_Worker(t *testing.T) {

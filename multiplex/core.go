@@ -104,9 +104,18 @@ func (s ServiceCore) Router() *ServiceRouter {
 	return s.i.Router
 }
 
-// Set router to use for inter-service operability.
-func (s ServiceCore) SetRouter(controller *ServiceController) {
+// Set router to use for inter-service operability, and report whether it was set.
+// Call it before SetWorker: while the service has Process routines, including ones still starting or exiting, it keeps the current router and returns false.
+// Never call it concurrently with Router or Dispatch.
+func (s ServiceCore) SetRouter(controller *ServiceController) bool {
+	s.i.WorkerCounter.Lock()
+	defer s.i.WorkerCounter.Unlock()
+	if s.i.WorkerCount > 0 || s.i.WorkerCounter.ValueNoLock() > 0 {
+		s.i.Logger.Warnf("%s: Ignored router change: service has workers.", s.i.ServiceID)
+		return false
+	}
 	s.i.Router = controller.i.Router
+	return true
 }
 
 // Set number of Process routines the service should use to handle requests.
