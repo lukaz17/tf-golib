@@ -55,6 +55,59 @@ func TestServiceController_Unregister(t *testing.T) {
 	assert.False(t, found, "service must be unregistered")
 }
 
+func TestServiceController_Register_WhileRunning(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewServiceController(logger)
+	hold := NewHoldService(diag.NewDebugLogger(10))
+	hold.SetRouter(svc)
+	hold.SetWorker(1)
+	t.Cleanup(func() { hold.SetWorker(0) })
+	taken := make(chan struct{}, 1)
+	release := make(chan struct{})
+	close(release)
+	svc.Dispatch("NoSuchService", "hello", ExecParams{})
+	exited := runInBackground(svc)
+
+	isRegistered := svc.Register(hold)
+	svc.Dispatch(hold.ServiceID(), "hold", ExecParams{"taken": taken, "release": release})
+	svc.Exec("exit", ExecParams{})
+	<-exited
+
+	assert.True(t, isRegistered)
+	assert.Equal(t, []string{
+		"INFO Controller#1: Process started.",
+		`WARN Controller#1: Ignored command "hello": service "NoSuchService" is not registered.`,
+		"INFO Controller#1: Process exited.",
+	}, logger.AllMessages())
+	select {
+	case <-taken:
+	case <-time.After(workerTakeTimeout):
+		t.Fatal("service registered while running did not take the dispatched message")
+	}
+}
+
+func TestServiceController_Unregister_WhileRunning(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewServiceController(logger)
+	hold := NewHoldService(diag.NewDebugLogger(10))
+	hold.SetRouter(svc)
+	svc.Register(hold)
+	svc.Dispatch("NoSuchService", "hello", ExecParams{})
+	exited := runInBackground(svc)
+
+	svc.Unregister(hold.ServiceID())
+	svc.Dispatch(hold.ServiceID(), "hold", ExecParams{})
+	svc.Exec("exit", ExecParams{})
+	<-exited
+
+	assert.Equal(t, []string{
+		"INFO Controller#1: Process started.",
+		`WARN Controller#1: Ignored command "hello": service "NoSuchService" is not registered.`,
+		`WARN Controller#1: Ignored command "hold": service "Hold" is not registered.`,
+		"INFO Controller#1: Process exited.",
+	}, logger.AllMessages())
+}
+
 func TestServiceController_Run_Background(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewServiceController(logger)
@@ -168,4 +221,14 @@ func TestServiceController_Integration(t *testing.T) {
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 	assert.Contains(t, logger2.LastMessage(), "INFO Hash#1: Value hashed: ", "invalid message")
 	assert.Contains(t, logger3.LastMessage(), "INFO Random#1: Value randomed:", "invalid message")
+}
+
+// Run the controller in background on its own goroutine; the returned channel is closed once its worker has processed an exit command.
+func runInBackground(svc *ServiceController) <-chan struct{} {
+	exited := make(chan struct{})
+	go func() {
+		defer close(exited)
+		svc.Run(true)
+	}()
+	return exited
 }

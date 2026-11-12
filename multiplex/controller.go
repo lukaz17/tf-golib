@@ -20,12 +20,18 @@
 
 package multiplex
 
-import "github.com/tforce-io/tf-golib/diag"
+import (
+	"sync"
+
+	"github.com/tforce-io/tf-golib/diag"
+)
 
 // ServiceController is a controller for managing services and routing messages between them.
 type ServiceController struct {
 	ServiceCore
-	services map[string]Service
+
+	services   map[string]Service
+	servicesMu sync.RWMutex
 }
 
 // Return new ServiceRouter.
@@ -40,17 +46,24 @@ func NewServiceController(logger diag.Logger) *ServiceController {
 }
 
 // Register service for routing.
+// Safe to call while the controller is running.
 func (s *ServiceController) Register(service Service) bool {
 	if service.Router() != s.Router() {
-		s.i.Logger.Warn("Service %s's router is invalid", service.ServiceID())
+		s.i.Logger.Warnf("Service %s's router is invalid", service.ServiceID())
 		return false
 	}
-	s.services[service.ServiceID()] = service
+	serviceID := service.ServiceID()
+	s.servicesMu.Lock()
+	defer s.servicesMu.Unlock()
+	s.services[serviceID] = service
 	return true
 }
 
 // Unregister a service by serviceID.
+// Safe to call while the controller is running.
 func (s *ServiceController) Unregister(serviceID string) {
+	s.servicesMu.Lock()
+	defer s.servicesMu.Unlock()
 	delete(s.services, serviceID)
 }
 
@@ -77,7 +90,10 @@ func (s *ServiceController) coreProcessHook(workerID uint64, msg *ServiceMessage
 		s.i.Logger.Warnf("%s#%d: Ignored command %q: no target service.", s.i.ServiceID, workerID, msg.Command)
 		return &HookState{Handled: true}
 	}
+	// Unlock before Exec, which blocks while target's queue is full.
+	s.servicesMu.RLock()
 	service, found := s.services[extra.ServiceID]
+	s.servicesMu.RUnlock()
 	if !found {
 		s.i.Logger.Warnf("%s#%d: Ignored command %q: service %q is not registered.", s.i.ServiceID, workerID, msg.Command, extra.ServiceID)
 		return &HookState{Handled: true}
