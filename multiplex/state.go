@@ -40,7 +40,7 @@ const (
 	RetryState
 )
 
-// ProcessState indicates status of service's Hook processing.
+// HookState indicates status of service's Hook processing.
 type HookState struct {
 	Handled bool
 }

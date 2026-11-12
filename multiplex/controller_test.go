@@ -130,6 +130,29 @@ func TestServiceController_Run_Background_ExitAlreadyQueued(t *testing.T) {
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 }
 
+func TestServiceController_Run_Background_RunsAgainAfterExit(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewServiceController(logger)
+	svc.Exec("exit", ExecParams{})
+	svc.Run(true)
+	svc.Exec("exit", ExecParams{})
+
+	exited := runInBackground(svc)
+
+	select {
+	case <-exited:
+	case <-time.After(workerTakeTimeout):
+		t.Fatal("second Run did not start a worker")
+	}
+	assert.Equal(t, uint64(0), svc.WorkerCount(), "mismatch worker count")
+	assert.Equal(t, []string{
+		"INFO Controller#1: Process started.",
+		"INFO Controller#1: Process exited.",
+		"INFO Controller#2: Process started.",
+		"INFO Controller#2: Process exited.",
+	}, logger.AllMessages())
+}
+
 func TestServiceController_Run_DropsMisroutedMessage(t *testing.T) {
 	noTarget := `WARN Controller#1: Ignored command "hello": no target service.`
 	tests := []struct {

@@ -61,15 +61,16 @@ type ServiceCore struct {
 // ServiceCoreInternal stores internal data of a ServiceCore.
 type ServiceCoreInternal struct {
 	ServiceID string
-	WorkerID  uint64
 	Router    *ServiceRouter
 
 	MainChan   chan *ServiceMessage
 	ExitChan   chan bool
-	Background bool
+	background bool
 
-	WorkerCounter *Uint64ThreadSafe
-	WorkerCount   uint64
+	workerID       uint64
+	workerCount    uint64
+	workerCounter  *Uint64ThreadSafe
+	workerExitChan chan struct{}
 
 	Logger diag.Logger
 
@@ -77,15 +78,19 @@ type ServiceCoreInternal struct {
 }
 
 // Init ServiceCore internal and return the reference for later access.
+// processHook receives every request first; a nil HookState counts as not handled, like Handled false.
 func (s *ServiceCore) InitServiceCore(serviceID string, logger diag.Logger, processHook func(workerID uint64, msg *ServiceMessage) *HookState) *ServiceCoreInternal {
 	if s.i != nil {
 		return s.i
 	}
 	s.i = &ServiceCoreInternal{
-		ServiceID:     serviceID,
-		MainChan:      make(chan *ServiceMessage, MainChainCapacity),
-		ExitChan:      make(chan bool, ExtraChanCapacity),
-		WorkerCounter: &Uint64ThreadSafe{},
+		ServiceID: serviceID,
+
+		MainChan: make(chan *ServiceMessage, MainChainCapacity),
+		ExitChan: make(chan bool, ExtraChanCapacity),
+
+		workerCounter:  &Uint64ThreadSafe{},
+		workerExitChan: make(chan struct{}),
 
 		Logger: logger,
 
@@ -108,9 +113,9 @@ func (s ServiceCore) Router() *ServiceRouter {
 // Call it before SetWorker: while the service has Process routines, including ones still starting or exiting, it keeps the current router and returns false.
 // Never call it concurrently with Router or Dispatch.
 func (s ServiceCore) SetRouter(controller *ServiceController) bool {
-	s.i.WorkerCounter.Lock()
-	defer s.i.WorkerCounter.Unlock()
-	if s.i.WorkerCount > 0 || s.i.WorkerCounter.ValueNoLock() > 0 {
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	if s.i.workerCount > 0 || s.i.workerCounter.ValueNoLock() > 0 {
 		s.i.Logger.Warnf("%s: Ignored router change: service has workers.", s.i.ServiceID)
 		return false
 	}
@@ -119,31 +124,29 @@ func (s ServiceCore) SetRouter(controller *ServiceController) bool {
 }
 
 // Set number of Process routines the service should use to handle requests.
-// A call made while routines from an earlier call are still starting or exiting also takes effect.
+// Lowering it stops the extra routines after their current request, ahead of queued requests; with 0, queued requests wait until routines are added again.
+// A call made while routines from an earlier call are still starting or stopping also takes effect.
 func (s ServiceCore) SetWorker(workerCount uint64) {
-	s.i.WorkerCounter.Lock()
-	current := s.i.WorkerCount
-	for i := current; i < workerCount; i++ {
-		s.i.WorkerID++
-		go s.process(s.i.WorkerID)
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	s.i.workerCount = workerCount
+	routineCount := s.i.workerCounter.ValueNoLock()
+	if routineCount > workerCount {
+		close(s.i.workerExitChan)
+		s.i.workerExitChan = make(chan struct{})
 	}
-	s.i.WorkerCount = workerCount
-	s.i.WorkerCounter.Unlock()
-
-	// Send after unlocking: a send blocks while MainChan is full, and the routines that would drain it need this lock to start.
-	for i := current; i > workerCount; i-- {
-		cmd := &ServiceMessage{
-			Command: "exit",
-		}
-		s.i.MainChan <- cmd
+	for ; routineCount < workerCount; routineCount++ {
+		s.i.workerID++
+		s.i.workerCounter.AddNoLock(1)
+		go s.process(s.i.workerID, s.i.workerExitChan)
 	}
 }
 
 // Return number of Process routines the service is managing.
 func (s ServiceCore) WorkerCount() uint64 {
-	s.i.WorkerCounter.Lock()
-	defer s.i.WorkerCounter.Unlock()
-	return s.i.WorkerCount
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	return s.i.workerCount
 }
 
 // Enqueue the request.
@@ -161,36 +164,71 @@ func (s ServiceCore) Dispatch(serviceID string, command string, params ExecParam
 }
 
 // Process routine to handle the request.
-func (s ServiceCore) process(workerID uint64) {
-	s.i.WorkerCounter.Add(1)
+func (s ServiceCore) process(workerID uint64, workerExitChan <-chan struct{}) {
 	s.i.Logger.Infof("%s#%d: Process started.", s.i.ServiceID, workerID)
 	status := InitState
 	for status != ExitState {
-		msg := <-s.i.MainChan
+		select {
+		case <-workerExitChan:
+			var shouldExit bool
+			shouldExit, workerExitChan = s.processExitSignal()
+			if shouldExit {
+				status = ExitState
+			}
+			continue
+		default:
+		}
+		var msg *ServiceMessage
+		select {
+		case <-workerExitChan:
+			continue
+		case msg = <-s.i.MainChan:
+		}
 		if s.i.CoreProcessHook != nil {
 			hookState := s.i.CoreProcessHook(workerID, msg)
-			if hookState.Handled {
+			if hookState != nil && hookState.Handled {
 				continue
 			}
 		}
 		if msg.Command == "exit" {
+			s.processExitCommand()
 			status = ExitState
 			continue
 		}
 	}
-	s.i.WorkerCounter.Lock()
-	s.i.WorkerCounter.SubNoLock(1)
-	background := s.i.Background
-	s.i.WorkerCounter.Unlock()
+	s.i.workerCounter.Lock()
+	background := s.i.background
+	s.i.workerCounter.Unlock()
 	s.i.Logger.Infof("%s#%d: Process exited.", s.i.ServiceID, workerID)
 	if background {
 		s.i.ExitChan <- true
 	}
 }
 
+// Remove the calling Process routine for an exit command, and lower the worker count by one unless it is already 0.
+func (s ServiceCore) processExitCommand() {
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	s.i.workerCounter.SubNoLock(1)
+	if s.i.workerCount > 0 {
+		s.i.workerCount--
+	}
+}
+
+// Handle a closed workerExitChan: report whether the calling Process routine should exit, removing it if the routines outnumber the worker count, and otherwise return the current workerExitChan to wait on.
+func (s ServiceCore) processExitSignal() (shouldExit bool, workerExit <-chan struct{}) {
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	if s.i.workerCounter.ValueNoLock() <= s.i.workerCount {
+		return false, s.i.workerExitChan
+	}
+	s.i.workerCounter.SubNoLock(1)
+	return true, nil
+}
+
 // Set whether exiting Process routines signal ExitChan.
 func (s ServiceCore) setBackground(background bool) {
-	s.i.WorkerCounter.Lock()
-	defer s.i.WorkerCounter.Unlock()
-	s.i.Background = background
+	s.i.workerCounter.Lock()
+	defer s.i.workerCounter.Unlock()
+	s.i.background = background
 }
