@@ -77,6 +77,54 @@ func TestServiceController_Run_Background_ExitAlreadyQueued(t *testing.T) {
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 }
 
+func TestServiceController_Run_DropsMisroutedMessage(t *testing.T) {
+	noTarget := `WARN Controller#1: Ignored command "hello": no target service.`
+	tests := []struct {
+		name    string
+		send    func(svc *ServiceController)
+		warning string
+	}{
+		{
+			name:    "unregistered service",
+			send:    func(svc *ServiceController) { svc.Dispatch("NoSuchService", "hello", ExecParams{}) },
+			warning: `WARN Controller#1: Ignored command "hello": service "NoSuchService" is not registered.`,
+		},
+		{
+			name:    "dispatch without service",
+			send:    func(svc *ServiceController) { svc.Dispatch("", "hello", ExecParams{}) },
+			warning: noTarget,
+		},
+		{
+			name:    "exec on controller",
+			send:    func(svc *ServiceController) { svc.Exec("hello", ExecParams{}) },
+			warning: noTarget,
+		},
+		{
+			name: "nil target",
+			send: func(svc *ServiceController) {
+				svc.i.MainChan <- &ServiceMessage{Command: "hello", Extra: (*ControllerExtra)(nil)}
+			},
+			warning: noTarget,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := diag.NewDebugLogger(10)
+			svc := NewServiceController(logger)
+			tt.send(svc)
+			svc.Exec("exit", ExecParams{})
+
+			svc.Run(true)
+
+			assert.Equal(t, []string{
+				"INFO Controller#1: Process started.",
+				tt.warning,
+				"INFO Controller#1: Process exited.",
+			}, logger.AllMessages())
+		})
+	}
+}
+
 func TestServiceController_Dispatch(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewServiceController(logger)

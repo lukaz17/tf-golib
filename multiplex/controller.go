@@ -72,8 +72,17 @@ func (s *ServiceController) coreProcessHook(workerID uint64, msg *ServiceMessage
 	if msg.Extra == nil && msg.Command == "exit" {
 		return &HookState{Handled: false}
 	}
-	serviceID := msg.Extra.(*ControllerExtra).ServiceID
-	s.services[serviceID].Exec(msg.Command, msg.Params)
+	extra, ok := msg.Extra.(*ControllerExtra)
+	if !ok || extra == nil {
+		s.i.Logger.Warnf("%s#%d: Ignored command %q: no target service.", s.i.ServiceID, workerID, msg.Command)
+		return &HookState{Handled: true}
+	}
+	service, found := s.services[extra.ServiceID]
+	if !found {
+		s.i.Logger.Warnf("%s#%d: Ignored command %q: service %q is not registered.", s.i.ServiceID, workerID, msg.Command, extra.ServiceID)
+		return &HookState{Handled: true}
+	}
+	service.Exec(msg.Command, msg.Params)
 	return &HookState{Handled: true}
 }
 
