@@ -231,8 +231,11 @@ func TestCounter_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	// Writer goroutines
+	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for j := 0; j < 100; j++ {
 				c.Inc()
 				c.Dec()
@@ -243,7 +246,6 @@ func TestCounter_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	// Let it run for a bit
-	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

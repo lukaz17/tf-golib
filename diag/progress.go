@@ -20,7 +20,10 @@
 
 package diag
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Progress is a helper type to track progress.
 type Progress struct {
@@ -28,7 +31,9 @@ type Progress struct {
 	ttlVal *Counter
 
 	started time.Time
-	updated time.Time
+
+	updated   time.Time
+	updatedMu sync.Mutex
 }
 
 // Return new Progress tracker with total items to complete.
@@ -58,7 +63,9 @@ func (p *Progress) Complete(v float64) {
 		panic("v must be positive")
 	}
 	p.curVal.Add(v)
+	p.updatedMu.Lock()
 	p.updated = time.Now()
+	p.updatedMu.Unlock()
 }
 
 // Estimate when the Progress will be completed.
@@ -68,7 +75,7 @@ func (p *Progress) EstimatedTime() time.Time {
 	}
 	passed := time.Since(p.started)
 	timeToComplete := passed / time.Duration(p.curVal.Value()) * time.Duration(p.ttlVal.Value())
-	return p.updated.Add(timeToComplete)
+	return p.lastUpdated().Add(timeToComplete)
 }
 
 func (p *Progress) Percent() float64 {
@@ -88,5 +95,12 @@ func (p *Progress) RemainTime() time.Duration {
 
 // Return current value, total value and last updated time.
 func (p *Progress) Value() (float64, float64, time.Time) {
-	return p.curVal.Value(), p.ttlVal.Value(), p.updated
+	return p.curVal.Value(), p.ttlVal.Value(), p.lastUpdated()
+}
+
+// Return the time of the last Complete call, or the creation time if there is none.
+func (p *Progress) lastUpdated() time.Time {
+	p.updatedMu.Lock()
+	defer p.updatedMu.Unlock()
+	return p.updated
 }
