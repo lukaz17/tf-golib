@@ -67,6 +67,16 @@ func TestServiceController_Run_Background(t *testing.T) {
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 }
 
+func TestServiceController_Run_Background_ExitAlreadyQueued(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewServiceController(logger)
+	svc.Exec("exit", ExecParams{})
+
+	svc.Run(true)
+
+	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
+}
+
 func TestServiceController_Dispatch(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewServiceController(logger)

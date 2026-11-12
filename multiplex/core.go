@@ -171,9 +171,19 @@ func (s ServiceCore) process(workerID uint64) {
 			continue
 		}
 	}
-	s.i.WorkerCounter.Sub(1)
+	s.i.WorkerCounter.Lock()
+	s.i.WorkerCounter.SubNoLock(1)
+	background := s.i.Background
+	s.i.WorkerCounter.Unlock()
 	s.i.Logger.Infof("%s#%d: Process exited.", s.i.ServiceID, workerID)
-	if s.i.Background {
+	if background {
 		s.i.ExitChan <- true
 	}
+}
+
+// Set whether exiting Process routines signal ExitChan.
+func (s ServiceCore) setBackground(background bool) {
+	s.i.WorkerCounter.Lock()
+	defer s.i.WorkerCounter.Unlock()
+	s.i.Background = background
 }
