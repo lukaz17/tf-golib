@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package securerng
 
@@ -24,7 +38,6 @@ var (
 
 // Int returns, as an int, a non-negative uniform integer
 // from the default [Reader].
-// Available since v0.3.0
 func Int() int {
 	v, err := rand.Int(rand.Reader, big.NewInt(int64(intMax)))
 	if err != nil {
@@ -36,7 +49,6 @@ func Int() int {
 // Intn returns, as an int, a non-negative uniform number in the half-open interval [0,n)
 // from the default [Reader].
 // It panics if n <= 0.
-// Available since v0.3.0
 func Intn(n int) int {
 	if n <= 0 {
 		panic("invalid argument to Intn")
@@ -51,7 +63,6 @@ func Intn(n int) int {
 // Intr returns, as an int, a non-negative uniform number in the half-open interval [i,n)
 // from the default [Reader].
 // It panics if n <= 0 or n <= i.
-// Available since v0.3.0
 func Intr(i, n int) int {
 	if n <= 0 || n <= i {
 		panic("invalid argument to Intr")
@@ -61,7 +72,6 @@ func Intr(i, n int) int {
 
 // Int31 returns, as an int32, a non-negative uniform integer
 // from the default [Reader].
-// Available since v0.3.0
 func Int31() int32 {
 	v, err := rand.Int(rand.Reader, big.NewInt(int64(int32Max)))
 	if err != nil {
@@ -73,7 +83,6 @@ func Int31() int32 {
 // Int31n returns, as an int32, a non-negative uniform number in the half-open interval [0,n)
 // from the default [Reader].
 // It panics if n <= 0.
-// Available since v0.3.0
 func Int31n(n int32) int32 {
 	if n <= 0 {
 		panic("invalid argument to Int31n")
@@ -88,7 +97,6 @@ func Int31n(n int32) int32 {
 // Int31r returns, as an int32, a non-negative uniform number in the half-open interval [i,n)
 // from the default [Reader].
 // It panics if n <= 0 or n <= i.
-// Available since v0.3.0
 func Int31r(i, n int32) int32 {
 	if n <= 0 || n <= i {
 		panic("invalid argument to Int31r")
@@ -98,7 +106,6 @@ func Int31r(i, n int32) int32 {
 
 // Int63 returns, as an int64, a non-negative uniform integer
 // from the default [Reader].
-// Available since v0.3.0
 func Int63() int64 {
 	v, err := rand.Int(rand.Reader, big.NewInt(int64Max))
 	if err != nil {
@@ -110,7 +117,6 @@ func Int63() int64 {
 // Int63n returns, as an int64, a non-negative uniform number in the half-open interval [0,n)
 // from the default [Reader].
 // It panics if n <= 0.
-// Available since v0.3.0
 func Int63n(n int64) int64 {
 	if n <= 0 {
 		panic("invalid argument to Int63n")
@@ -125,7 +131,6 @@ func Int63n(n int64) int64 {
 // Int63r returns, as an int64, a non-negative uniform number in the half-open interval [i,n)
 // from the default [Reader].
 // It panics if n <= 0 or n <= i.
-// Available since v0.3.0
 func Int63r(i, n int64) int64 {
 	if n <= 0 || n <= i {
 		panic("invalid argument to Int63r")
@@ -135,7 +140,6 @@ func Int63r(i, n int64) int64 {
 
 // Uint32 returns, as an uint32, a uniform integer
 // from the default [Reader].
-// Available since v0.3.0
 func Uint32() uint32 {
 	v, err := rand.Int(rand.Reader, new(big.Int).SetUint64(uint64(uint32Max)))
 	if err != nil {
@@ -147,7 +151,6 @@ func Uint32() uint32 {
 // Uint32n returns, as an uint32, a uniform number in the half-open interval [0,n)
 // from the default [Reader].
 // It panics if n <= 0.
-// Available since v0.3.0
 func Uint32n(n uint32) uint32 {
 	if n <= 0 {
 		panic("invalid argument to Uint32n")
@@ -162,7 +165,6 @@ func Uint32n(n uint32) uint32 {
 // Uint32r returns, as an uint32, a uniform number in the half-open interval [i,n)
 // from the default [Reader].
 // It panics if n <= 0 or n <= i.
-// Available since v0.3.0
 func Uint32r(i, n uint32) uint32 {
 	if n <= 0 || n <= i {
 		panic("invalid argument to Uint32r")
@@ -172,7 +174,6 @@ func Uint32r(i, n uint32) uint32 {
 
 // Uint64 returns, as an uint64, a uniform integer
 // from the default [Reader].
-// Available since v0.3.0
 func Uint64() uint64 {
 	v, err := rand.Int(rand.Reader, new(big.Int).SetUint64(uint64Max))
 	if err != nil {
@@ -184,7 +185,6 @@ func Uint64() uint64 {
 // Uint64n returns, as an uint64, a uniform number in the half-open interval [0,n)
 // from the default [Reader].
 // It panics if n <= 0.
-// Available since v0.3.0
 func Uint64n(n uint64) uint64 {
 	if n <= 0 {
 		panic("invalid argument to Uint64n")
@@ -199,7 +199,6 @@ func Uint64n(n uint64) uint64 {
 // Uint64r returns, as an uint64, a uniform number in the half-open interval [i,n)
 // from the default [Reader].
 // It panics if n <= 0 or n <= i.
-// Available since v0.3.0
 func Uint64r(i, n uint64) uint64 {
 	if n <= 0 || n <= i {
 		panic("invalid argument to Uint64r")

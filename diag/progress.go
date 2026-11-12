@@ -1,16 +1,28 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package diag
 
 import "time"
 
 // Progress is a helper type to track progress.
-//
-// Available since v0.7.0
 type Progress struct {
 	curVal *Counter
 	ttlVal *Counter
@@ -20,8 +32,6 @@ type Progress struct {
 }
 
 // Return new Progress tracker with total items to complete.
-//
-// Available since v0.7.0
 func NewProgress(total float64) *Progress {
 	if total <= 0 {
 		panic("total must be positive")
@@ -35,8 +45,6 @@ func NewProgress(total float64) *Progress {
 }
 
 // Add v number of items as to be completed.
-//
-// Available since v0.7.0
 func (p *Progress) Add(v float64) {
 	if v <= 0 {
 		panic("v must be positive")
@@ -45,8 +53,6 @@ func (p *Progress) Add(v float64) {
 }
 
 // Mark v number of items as completed.
-//
-// Available since v0.7.0
 func (p *Progress) Complete(v float64) {
 	if v <= 0 {
 		panic("v must be positive")
@@ -56,8 +62,6 @@ func (p *Progress) Complete(v float64) {
 }
 
 // Estimate when the Progress will be completed.
-//
-// Available since v0.7.0
 func (p *Progress) EstimatedTime() time.Time {
 	if p.curVal.Value() == 0 {
 		return time.Now().AddDate(999, 0, 0)
@@ -72,8 +76,6 @@ func (p *Progress) Percent() float64 {
 }
 
 // Estimate how long the Progress will be completed.
-//
-// Available since v0.7.0
 func (p *Progress) RemainTime() time.Duration {
 	if p.curVal.Value() == 0 {
 		return 0
@@ -85,8 +87,6 @@ func (p *Progress) RemainTime() time.Duration {
 }
 
 // Return current value, total value and last updated time.
-//
-// Available since v0.7.0
 func (p *Progress) Value() (float64, float64, time.Time) {
 	return p.curVal.Value(), p.ttlVal.Value(), p.updated
 }

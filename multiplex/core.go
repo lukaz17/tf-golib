@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package multiplex
 
@@ -18,51 +32,33 @@ const (
 )
 
 // Service interface defines minimum functions for a service.
-//
-// Available since v0.5.0
 type Service interface {
 	// Return Service Identifier string
-	//
-	// Available since v0.5.0
 	ServiceID() string
 
 	// Return Router for inter-service operability.
-	//
-	// Available since v0.5.0
 	Router() *ServiceRouter
 
 	// Set number of Process routines the service should use to handle requests.
-	//
-	// Available since v0.5.0
 	SetWorker(workerCount uint64)
 
 	// Return number of Process routines the service is managing.
-	//
-	// Available since v0.5.0
 	WorkerCount() uint64
 
 	// Enqueue the request.
-	//
-	// Available since v0.5.0
 	Exec(command string, params ExecParams)
 
 	// Request other service to handle the request via configurated Router.
-	//
-	// Available since v0.5.0
 	Dispatch(serviceID string, command string, params ExecParams)
 }
 
 // ServiceCore is the base struct for deriving new service.
 // New service need to embed ServiceCore to access to pre-defined pattern.
-//
-// Available since v0.5.0
 type ServiceCore struct {
 	i *ServiceCoreInternal
 }
 
 // ServiceCoreInternal stores internal data of a ServiceCore.
-//
-// Available since v0.5.0
 type ServiceCoreInternal struct {
 	ServiceID string
 	WorkerID  uint64
@@ -81,8 +77,6 @@ type ServiceCoreInternal struct {
 }
 
 // Init ServiceCore internal and return the reference for later access.
-//
-// Available since v0.5.0
 func (s *ServiceCore) InitServiceCore(serviceID string, logger diag.Logger, processHook func(workerID uint64, msg *ServiceMessage) *HookState) *ServiceCoreInternal {
 	if s.i != nil {
 		return s.i
@@ -101,29 +95,21 @@ func (s *ServiceCore) InitServiceCore(serviceID string, logger diag.Logger, proc
 }
 
 // Return Service Identifier string.
-//
-// Available since v0.5.0
 func (s ServiceCore) ServiceID() string {
 	return s.i.ServiceID
 }
 
 // Return Router for inter-service operability.
-//
-// Available since v0.5.0
 func (s ServiceCore) Router() *ServiceRouter {
 	return s.i.Router
 }
 
 // Set router to use for inter-service operability.
-//
-// Available since v0.5.0
 func (s ServiceCore) SetRouter(controller *ServiceController) {
 	s.i.Router = controller.i.Router
 }
 
 // Set number of Process routines the service should use to handle requests.
-//
-// Available since v0.5.0
 func (s ServiceCore) SetWorker(workerCount uint64) {
 	s.i.WorkerCounter.Lock()
 	defer s.i.WorkerCounter.Unlock()
@@ -149,15 +135,11 @@ func (s ServiceCore) SetWorker(workerCount uint64) {
 }
 
 // Return number of Process routines the service is managing.
-//
-// Available since v0.5.0
 func (s ServiceCore) WorkerCount() uint64 {
 	return s.i.WorkerCount
 }
 
 // Enqueue the request.
-//
-// Available since v0.5.0
 func (s ServiceCore) Exec(command string, params ExecParams) {
 	msg := &ServiceMessage{
 		Command: command,
@@ -167,15 +149,11 @@ func (s ServiceCore) Exec(command string, params ExecParams) {
 }
 
 // Request other service to handle the request via configurated Router.
-//
-// Available since v0.5.0
 func (s ServiceCore) Dispatch(serviceID string, command string, params ExecParams) {
 	s.i.Router.Forward(serviceID, command, params)
 }
 
 // Process routine to handle the request.
-//
-// Available since v0.5.0
 func (s ServiceCore) process(workerID uint64) {
 	s.i.WorkerCounter.Add(1)
 	s.i.Logger.Infof("%s#%d: Process started.", s.i.ServiceID, workerID)

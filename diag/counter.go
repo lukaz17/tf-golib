@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package diag
 
@@ -17,8 +31,6 @@ import (
 // A Counter is typically used to count requests served, tasks completed, errors occurred, etc.
 //
 // For Set-heavy use case. Please consider using Gauge instead.
-//
-// Available since v0.7.0
 type Counter struct {
 	// valBits contains the bits of the represented float64 value, while
 	// valInt stores values that are exact integers. Both have to go first
@@ -29,8 +41,6 @@ type Counter struct {
 }
 
 // Return new Counter with the given initial value.
-//
-// Available since v0.7.0
 func NewCounter(initVal float64) *Counter {
 	c := &Counter{}
 	c.Add(initVal)
@@ -38,8 +48,6 @@ func NewCounter(initVal float64) *Counter {
 }
 
 // Add the given value to the counter.
-//
-// Available since v0.7.0
 func (c *Counter) Add(v float64) {
 	ival := int64(v)
 	if float64(ival) == v {
@@ -57,29 +65,21 @@ func (c *Counter) Add(v float64) {
 }
 
 // Subtract the given value to the counter.
-//
-// Available since v0.7.0
 func (c *Counter) Sub(v float64) {
 	c.Add(v * -1)
 }
 
 // Increment the counter by 1.
-//
-// Available since v0.7.0
 func (c *Counter) Inc() {
 	c.Add(1)
 }
 
 // Decrement the counter by 1.
-//
-// Available since v0.7.0
 func (c *Counter) Dec() {
 	c.Add(-1)
 }
 
 // Set an arbitary value to the counter.
-//
-// Available since v0.7.0
 func (c *Counter) Set(v float64) {
 	for {
 		oldBits := atomic.LoadUint64(&c.valBits)
@@ -92,8 +92,6 @@ func (c *Counter) Set(v float64) {
 }
 
 // Return the current value stored in the counter.
-//
-// Available since v0.7.0
 func (c *Counter) Value() float64 {
 	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	ival := atomic.LoadInt64(&c.valInt)

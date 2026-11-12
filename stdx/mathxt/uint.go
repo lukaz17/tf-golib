@@ -1,16 +1,28 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package mathxt
 
 /* --- UINT --- */
 
 // Return the smaller of x or y for uint.
-//
-// Available since v0.6.0
 func MinUint(x uint, y ...uint) uint {
 	min := x
 	for _, v := range y {
@@ -22,8 +34,6 @@ func MinUint(x uint, y ...uint) uint {
 }
 
 // Return the larger of x or y for uint.
-//
-// Available since v0.6.0
 func MaxUint(x uint, y ...uint) uint {
 	max := x
 	for _, v := range y {
@@ -37,8 +47,6 @@ func MaxUint(x uint, y ...uint) uint {
 /* --- UINT8 --- */
 
 // Return the smaller of x or y for uint8.
-//
-// Available since v0.6.0
 func MinUint8(x uint8, y ...uint8) uint8 {
 	min := x
 	for _, v := range y {
@@ -50,8 +58,6 @@ func MinUint8(x uint8, y ...uint8) uint8 {
 }
 
 // Return the larger of x or y for uint8.
-//
-// Available since v0.6.0
 func MaxUint8(x uint8, y ...uint8) uint8 {
 	max := x
 	for _, v := range y {
@@ -65,8 +71,6 @@ func MaxUint8(x uint8, y ...uint8) uint8 {
 /* --- UINT16 --- */
 
 // Return the smaller of x or y for uint16.
-//
-// Available since v0.6.0
 func MinUint16(x uint16, y ...uint16) uint16 {
 	min := x
 	for _, v := range y {
@@ -78,8 +82,6 @@ func MinUint16(x uint16, y ...uint16) uint16 {
 }
 
 // Return the larger of x or y for uint16.
-//
-// Available since v0.6.0
 func MaxUint16(x uint16, y ...uint16) uint16 {
 	max := x
 	for _, v := range y {
@@ -93,8 +95,6 @@ func MaxUint16(x uint16, y ...uint16) uint16 {
 /* --- UINT32 --- */
 
 // Return the smaller of x or y for uint32.
-//
-// Available since v0.6.0
 func MinUint32(x uint32, y ...uint32) uint32 {
 	min := x
 	for _, v := range y {
@@ -106,8 +106,6 @@ func MinUint32(x uint32, y ...uint32) uint32 {
 }
 
 // Return the larger of x or y for uint32.
-//
-// Available since v0.6.0
 func MaxUint32(x uint32, y ...uint32) uint32 {
 	max := x
 	for _, v := range y {
@@ -121,8 +119,6 @@ func MaxUint32(x uint32, y ...uint32) uint32 {
 /* --- UINT64 --- */
 
 // Return the smaller of x or y for uint64.
-//
-// Available since v0.6.0
 func MinUint64(x uint64, y ...uint64) uint64 {
 	min := x
 	for _, v := range y {
@@ -134,8 +130,6 @@ func MinUint64(x uint64, y ...uint64) uint64 {
 }
 
 // Return the larger of x or y for uint64.
-//
-// Available since v0.6.0
 func MaxUint64(x uint64, y ...uint64) uint64 {
 	max := x
 	for _, v := range y {

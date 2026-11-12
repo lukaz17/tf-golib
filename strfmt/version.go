@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package strfmt
 
@@ -15,8 +29,6 @@ import (
 // Version represents a struct that followed the rule of semantic version.
 // For more information, please refer to https://semver.org/
 // For strict semantic version compliant, please keep Revision as 0.
-//
-// Available since v0.8.0
 type Version struct {
 	Major    uint64
 	Minor    uint64
@@ -28,8 +40,6 @@ type Version struct {
 }
 
 // Returns a new version instance.
-//
-// Available since v0.8.0
 func NewVersion(major, minor, patch, revision uint64, preRelease, buildMeta string) Version {
 	return Version{
 		Major:    major,
@@ -43,8 +53,6 @@ func NewVersion(major, minor, patch, revision uint64, preRelease, buildMeta stri
 }
 
 // Parses a string and returns a new version instance.
-//
-// Available since v0.8.0
 func FromString(versionStr string) Version {
 	semVerRegEx := regexp.MustCompile(`^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:\.(?P<revision>[1-9]\d*))?(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`)
 	matches := semVerRegEx.FindStringSubmatch(versionStr)
@@ -71,8 +79,6 @@ func FromString(versionStr string) Version {
 }
 
 // Checks current Version is compliant with semantic versioning specification.
-//
-// Available since v0.8.0
 func (v Version) IsValid() bool {
 	prRegex := `^(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?$`
 	bmRegex := `^(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$`
@@ -82,8 +88,6 @@ func (v Version) IsValid() bool {
 }
 
 // Returns a string represents semantic version.
-//
-// Available since v0.8.0
 func (v Version) String() string {
 	version := ""
 	if v.Revision == 0 {
