@@ -22,6 +22,7 @@ package diag
 
 import (
 	"math"
+	"sync"
 	"sync/atomic"
 )
 
@@ -33,11 +34,14 @@ import (
 // For Set-heavy use case. Please consider using Gauge instead.
 type Counter struct {
 	// valBits contains the bits of the represented float64 value, while
-	// valInt stores values that are exact integers. Both have to go first
-	// in the struct to guarantee alignment for atomic operations.
+	// valInt stores values that are exact integers. valBitsSeq is odd while
+	// valBits is being written and changes with every write. All three have
+	// to go first in the struct to guarantee alignment for atomic operations.
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	valBits uint64
-	valInt  int64
+	valBits    uint64
+	valInt     int64
+	valBitsSeq uint64
+	valBitsMu  sync.Mutex
 }
 
 // Return new Counter with the given initial value.
@@ -55,13 +59,7 @@ func (c *Counter) Add(v float64) {
 		return
 	}
 
-	for {
-		oldBits := atomic.LoadUint64(&c.valBits)
-		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
-		if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
-			return
-		}
-	}
+	c.updateValBits(func(fval float64) float64 { return fval + v })
 }
 
 // Subtract the given value to the counter.
@@ -81,19 +79,33 @@ func (c *Counter) Dec() {
 
 // Set an arbitary value to the counter.
 func (c *Counter) Set(v float64) {
-	for {
-		oldBits := atomic.LoadUint64(&c.valBits)
-		ival := atomic.LoadInt64(&c.valInt)
-		newBits := math.Float64bits(v - float64(ival))
-		if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
-			return
-		}
-	}
+	c.updateValBits(func(float64) float64 { return v - float64(atomic.LoadInt64(&c.valInt)) })
 }
 
 // Return the current value stored in the counter.
 func (c *Counter) Value() float64 {
+	seq := atomic.LoadUint64(&c.valBitsSeq)
 	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	ival := atomic.LoadInt64(&c.valInt)
-	return fval + float64(ival)
+	if seq%2 == 0 && atomic.LoadUint64(&c.valBitsSeq) == seq {
+		return fval + float64(ival)
+	}
+
+	// A write to valBits overlapped the reads: waiting for it instead of retrying
+	// keeps Value bounded under a stream of writes.
+	c.valBitsMu.Lock()
+	defer c.valBitsMu.Unlock()
+	return math.Float64frombits(atomic.LoadUint64(&c.valBits)) + float64(atomic.LoadInt64(&c.valInt))
+}
+
+// Replace the float part of the counter with what update returns for it, in one write
+// that Value never observes half-done. Read valInt inside update, not before calling:
+// Value may run between an earlier read and the write.
+func (c *Counter) updateValBits(update func(fval float64) float64) {
+	c.valBitsMu.Lock()
+	defer c.valBitsMu.Unlock()
+	atomic.AddUint64(&c.valBitsSeq, 1)
+	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
+	atomic.StoreUint64(&c.valBits, math.Float64bits(update(fval)))
+	atomic.AddUint64(&c.valBitsSeq, 1)
 }
