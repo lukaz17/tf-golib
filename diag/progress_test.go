@@ -123,6 +123,28 @@ func TestProgress_Complete(t *testing.T) {
 	})
 }
 
+func TestProgress_NonFiniteAmount_Panics(t *testing.T) {
+	const totalMessage = "total must be positive and finite"
+	const amountMessage = "v must be positive and finite"
+	tests := []struct {
+		name    string
+		track   func()
+		message string
+	}{
+		{name: "infinite total", track: func() { NewProgress(math.Inf(1)) }, message: totalMessage},
+		{name: "NaN total", track: func() { NewProgress(math.NaN()) }, message: totalMessage},
+		{name: "infinite amount added", track: func() { NewProgress(1).Add(math.Inf(1)) }, message: amountMessage},
+		{name: "NaN amount added", track: func() { NewProgress(1).Add(math.NaN()) }, message: amountMessage},
+		{name: "infinite amount completed", track: func() { NewProgress(1).Complete(math.Inf(1)) }, message: amountMessage},
+		{name: "NaN amount completed", track: func() { NewProgress(1).Complete(math.NaN()) }, message: amountMessage},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.PanicsWithValue(t, tt.message, tt.track)
+		})
+	}
+}
+
 func TestProgress_Percent(t *testing.T) {
 	p := NewProgress(100)
 
@@ -275,6 +297,46 @@ func TestProgress_EstimatedTime_ClampsToLongestDuration(t *testing.T) {
 			assert.Equal(t, time.Duration(math.MaxInt64), estimated.Sub(p.started))
 		})
 	}
+}
+
+func TestProgress_RemainTime_UndefinedProjectionIsLongestDuration(t *testing.T) {
+	tests := []struct {
+		name  string
+		total float64
+		track func(p *Progress)
+	}{
+		{
+			name:  "completed amounts summing past float64's range",
+			total: 1,
+			track: func(p *Progress) { p.Complete(math.MaxFloat64); p.Complete(math.MaxFloat64) },
+		},
+		{
+			name:  "total and completed amounts summing past float64's range",
+			total: math.MaxFloat64,
+			track: func(p *Progress) { p.Add(math.MaxFloat64); p.Complete(math.MaxFloat64); p.Complete(math.MaxFloat64) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			tt.track(p)
+
+			remain := p.RemainTime()
+
+			assert.Equal(t, time.Duration(math.MaxInt64), remain)
+		})
+	}
+}
+
+func TestProgress_EstimatedTime_UndefinedProjectionIsLongestDuration(t *testing.T) {
+	p := newProgressStartedAgo(math.MaxFloat64, time.Hour)
+	p.Add(math.MaxFloat64)
+	p.Complete(math.MaxFloat64)
+	p.Complete(math.MaxFloat64)
+
+	estimated := p.EstimatedTime()
+
+	assert.Equal(t, time.Duration(math.MaxInt64), estimated.Sub(p.started))
 }
 
 func TestProgress_EstimatedTime_IsNotInFutureOnceComplete(t *testing.T) {

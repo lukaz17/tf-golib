@@ -38,9 +38,10 @@ type Progress struct {
 }
 
 // Return new Progress tracker with total items to complete.
+// It panics unless total is positive and finite.
 func NewProgress(total float64) *Progress {
-	if total <= 0 {
-		panic("total must be positive")
+	if !isPositiveFinite(total) {
+		panic("total must be positive and finite")
 	}
 	return &Progress{
 		curVal:  NewCounter(0),
@@ -51,17 +52,19 @@ func NewProgress(total float64) *Progress {
 }
 
 // Add v number of items as to be completed.
+// It panics unless v is positive and finite.
 func (p *Progress) Add(v float64) {
-	if v <= 0 {
-		panic("v must be positive")
+	if !isPositiveFinite(v) {
+		panic("v must be positive and finite")
 	}
 	p.ttlVal.Add(v)
 }
 
 // Mark v number of items as completed.
+// It panics unless v is positive and finite.
 func (p *Progress) Complete(v float64) {
-	if v <= 0 {
-		panic("v must be positive")
+	if !isPositiveFinite(v) {
+		panic("v must be positive and finite")
 	}
 	p.curVal.Add(v)
 	p.updatedMu.Lock()
@@ -70,7 +73,8 @@ func (p *Progress) Complete(v float64) {
 }
 
 // Estimate when the Progress will be completed.
-// A projected duration beyond the longest time.Duration (~292 years) is clamped to it.
+// A projected duration beyond the longest time.Duration (~292 years) is clamped to it;
+// so is one left undefined by amounts summing past float64's range.
 func (p *Progress) EstimatedTime() time.Time {
 	cur := p.curVal.Value()
 	if cur == 0 {
@@ -86,7 +90,8 @@ func (p *Progress) Percent() float64 {
 }
 
 // Estimate how long the Progress will be completed.
-// A projection beyond the longest time.Duration (~292 years) is clamped to it.
+// A projection beyond the longest time.Duration (~292 years) is clamped to it;
+// so is one left undefined by amounts summing past float64's range.
 func (p *Progress) RemainTime() time.Duration {
 	cur := p.curVal.Value()
 	if cur == 0 {
@@ -110,12 +115,19 @@ func (p *Progress) lastUpdated() time.Time {
 	return p.updated
 }
 
-// Return the Duration of a projected number of nanoseconds, or the longest Duration for a projection beyond it.
+// Return the Duration of a projected number of nanoseconds, or the longest Duration for a projection beyond it or undefined (NaN).
 func clampedDuration(ns float64) time.Duration {
 	// float64(math.MaxInt64) rounds up to 2^63, the first value out of range.
 	// Projections are never below minus the elapsed time, so only the upper end can overflow.
-	if ns >= float64(math.MaxInt64) {
+	// NaN, from amounts summing past float64's range, fails every comparison, so it is checked apart.
+	if ns >= float64(math.MaxInt64) || math.IsNaN(ns) {
 		return math.MaxInt64
 	}
 	return time.Duration(ns)
+}
+
+// Report whether v is an amount Progress accepts: above 0, and neither infinite nor NaN.
+func isPositiveFinite(v float64) bool {
+	// v > 0 is false for NaN, which v <= 0 would let through.
+	return v > 0 && !math.IsInf(v, 1)
 }
