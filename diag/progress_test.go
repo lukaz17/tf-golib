@@ -181,6 +181,78 @@ func TestProgress_RemainTime(t *testing.T) {
 	assert.Equal(t, time.Duration(0), remainTime)
 }
 
+func TestProgress_RemainTime_ProjectsElapsedTimeLinearly(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     float64
+		completed float64
+	}{
+		{name: "less than one item completed", total: 1, completed: 0.5},
+		{name: "fractional amounts", total: 10, completed: 1.9},
+		{name: "whole amounts", total: 100, completed: 25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			p.Complete(tt.completed)
+
+			var remain time.Duration
+			elapsed := measureElapsed(p, func() {
+				assert.NotPanics(t, func() { remain = p.RemainTime() })
+			})
+
+			elapsed.assertScaledBy(t, remain, (tt.total-tt.completed)/tt.completed)
+		})
+	}
+}
+
+func TestProgress_EstimatedTime_ProjectsElapsedTimeLinearly(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     float64
+		completed float64
+	}{
+		{name: "less than one item completed", total: 1, completed: 0.5},
+		{name: "fractional amounts", total: 10, completed: 1.9},
+		{name: "whole amounts", total: 100, completed: 25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			p.Complete(tt.completed)
+
+			var estimated time.Time
+			elapsed := measureElapsed(p, func() {
+				assert.NotPanics(t, func() { estimated = p.EstimatedTime() })
+			})
+
+			elapsed.assertScaledBy(t, estimated.Sub(p.started), tt.total/tt.completed)
+		})
+	}
+}
+
+func TestProgress_EstimatedTime_IsNotInFutureOnceComplete(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     float64
+		completed float64
+	}{
+		{name: "all items completed", total: 100, completed: 100},
+		{name: "more items completed than total", total: 100, completed: 150},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			p.Complete(tt.completed)
+
+			estimated := p.EstimatedTime()
+			called := time.Now()
+
+			assert.WithinRange(t, estimated, p.started, called)
+		})
+	}
+}
+
 func TestProgress_Value(t *testing.T) {
 	start := time.Now()
 	p := NewProgress(100)
@@ -355,4 +427,34 @@ func TestProgress_ZeroRemainTime(t *testing.T) {
 
 	// Percent should be 100%
 	assert.Equal(t, 100.0, p.Percent())
+}
+
+// newProgressStartedAgo returns a Progress whose tracking started elapsed ago,
+// so its projections cover a known elapsed time without sleeping.
+func newProgressStartedAgo(total float64, elapsed time.Duration) *Progress {
+	p := NewProgress(total)
+	p.started = time.Now().Add(-elapsed)
+	return p
+}
+
+// elapsedRange bounds the time elapsed since a Progress started, as read by a call.
+type elapsedRange struct {
+	min, max time.Duration
+}
+
+// measureElapsed runs call and returns the bounds of the time elapsed since p started
+// that call could have read.
+func measureElapsed(p *Progress, call func()) elapsedRange {
+	before := time.Now()
+	call()
+	after := time.Now()
+	return elapsedRange{min: before.Sub(p.started), max: after.Sub(p.started)}
+}
+
+// assertScaledBy asserts that projected is a time elapsed within r multiplied by ratio.
+func (r elapsedRange) assertScaledBy(t *testing.T, projected time.Duration, ratio float64) {
+	t.Helper()
+	const rounding = time.Microsecond // absorbs truncation to whole nanoseconds
+	assert.GreaterOrEqual(t, projected, time.Duration(float64(r.min)*ratio)-rounding)
+	assert.LessOrEqual(t, projected, time.Duration(float64(r.max)*ratio)+rounding)
 }

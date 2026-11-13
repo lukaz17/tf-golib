@@ -70,12 +70,13 @@ func (p *Progress) Complete(v float64) {
 
 // Estimate when the Progress will be completed.
 func (p *Progress) EstimatedTime() time.Time {
-	if p.curVal.Value() == 0 {
+	cur := p.curVal.Value()
+	if cur == 0 {
 		return time.Now().AddDate(999, 0, 0)
 	}
 	passed := time.Since(p.started)
-	timeToComplete := passed / time.Duration(p.curVal.Value()) * time.Duration(p.ttlVal.Value())
-	return p.lastUpdated().Add(timeToComplete)
+	timeToComplete := time.Duration(float64(passed) / cur * p.ttlVal.Value())
+	return p.started.Add(timeToComplete)
 }
 
 func (p *Progress) Percent() float64 {
@@ -84,12 +85,13 @@ func (p *Progress) Percent() float64 {
 
 // Estimate how long the Progress will be completed.
 func (p *Progress) RemainTime() time.Duration {
-	if p.curVal.Value() == 0 {
+	cur := p.curVal.Value()
+	if cur == 0 {
 		return 0
 	}
 	passed := time.Since(p.started)
-	remain := p.ttlVal.Value() - p.curVal.Value()
-	remainTime := passed / time.Duration(p.curVal.Value()) * time.Duration(remain)
+	remain := p.ttlVal.Value() - cur
+	remainTime := time.Duration(float64(passed) / cur * remain)
 	return remainTime
 }
 
