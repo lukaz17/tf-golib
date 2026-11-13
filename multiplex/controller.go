@@ -70,13 +70,13 @@ func (s *ServiceController) Unregister(serviceID string) {
 // Run the controller.
 func (s *ServiceController) Run(background bool) {
 	if background {
-		s.setBackground(true)
+		s.SetBackground(true)
 	}
 	s.SetWorker(1)
 
 	if background {
 		<-s.i.ExitChan
-		s.setBackground(false)
+		s.SetBackground(false)
 	}
 }
 

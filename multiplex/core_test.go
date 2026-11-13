@@ -129,7 +129,7 @@ func TestServiceCore_SetWorker_GrowWhileStopping(t *testing.T) {
 
 func TestServiceCore_SetWorker_StopsAheadOfQueuedRequests(t *testing.T) {
 	svc := NewHoldService(diag.NewDebugLogger(10))
-	svc.setBackground(true)
+	svc.SetBackground(true)
 	t.Cleanup(func() { svc.SetWorker(0) })
 	release := make(chan struct{})
 	svc.SetWorker(1)
@@ -148,7 +148,7 @@ func TestServiceCore_SetWorker_StopsAheadOfQueuedRequests(t *testing.T) {
 func TestServiceCore_SetWorker_StopsWorkerWhoseHookHandlesEverything(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewRandomService(logger)
-	svc.setBackground(true)
+	svc.SetBackground(true)
 	svc.SetWorker(1)
 
 	svc.SetWorker(0)
@@ -159,6 +159,49 @@ func TestServiceCore_SetWorker_StopsWorkerWhoseHookHandlesEverything(t *testing.
 		"INFO Random#1: Process started.",
 		"INFO Random#1: Process exited.",
 	}, logger.AllMessages())
+}
+
+func TestServiceCore_SetWorker_SignalsExitChanAfterLastWorkerExits(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewHoldService(logger)
+	svc.SetBackground(true)
+	release := make(chan struct{})
+	svc.SetWorker(2)
+	requireTaken(t, svc, 1, release)
+
+	svc.SetWorker(0)
+	close(release)
+	requireExited(t, svc.i)
+
+	assert.ElementsMatch(t, []string{
+		"INFO Hold#1: Process started.",
+		"INFO Hold#2: Process started.",
+		"INFO Hold#1: Process exited.",
+		"INFO Hold#2: Process exited.",
+	}, logger.AllMessages())
+	assert.Len(t, svc.i.ExitChan, 0, "one stop must send one signal")
+}
+
+func TestServiceCore_SetWorker_SignalsExitChanOncePerStop(t *testing.T) {
+	logger := diag.NewDebugLogger(10)
+	svc := NewRandomService(logger)
+	svc.SetBackground(true)
+	svc.SetWorker(4)
+
+	svc.SetWorker(0)
+	requireExited(t, svc.i)
+
+	assert.ElementsMatch(t, []string{
+		"INFO Random#1: Process started.",
+		"INFO Random#2: Process started.",
+		"INFO Random#3: Process started.",
+		"INFO Random#4: Process started.",
+		"INFO Random#1: Process exited.",
+		"INFO Random#2: Process exited.",
+		"INFO Random#3: Process exited.",
+		"INFO Random#4: Process exited.",
+	}, logger.AllMessages())
+	assert.Len(t, svc.i.ExitChan, 0, "one stop must send one signal")
 }
 
 func TestServiceCore_WorkerCount_DuringSetWorker(t *testing.T) {
@@ -190,25 +233,26 @@ func TestServiceCore_Exec(t *testing.T) {
 
 func TestServiceCore_Exec_Exit_LowersWorkerCount(t *testing.T) {
 	svc := NewHoldService(diag.NewDebugLogger(10))
-	svc.setBackground(true)
+	svc.SetBackground(true)
 	t.Cleanup(func() { svc.SetWorker(0) })
 	release := make(chan struct{})
 	defer close(release)
 	svc.SetWorker(2)
 
 	svc.Exec("exit", ExecParams{})
+	svc.Exec("exit", ExecParams{})
 	requireExited(t, svc.i)
 	workerCount := svc.WorkerCount()
 	svc.SetWorker(2)
 
-	assert.Equal(t, uint64(1), workerCount, "mismatch worker count")
+	assert.Equal(t, uint64(0), workerCount, "mismatch worker count")
 	requireTaken(t, svc, 2, release)
 }
 
 func TestServiceCore_Exec_NilHookState_CountsAsNotHandled(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewNilStateService(logger)
-	svc.setBackground(true)
+	svc.SetBackground(true)
 	svc.SetWorker(1)
 
 	svc.Exec("hello", ExecParams{})
@@ -222,6 +266,39 @@ func TestServiceCore_Exec_NilHookState_CountsAsNotHandled(t *testing.T) {
 		"INFO NilState#1: Message received: exit",
 		"INFO NilState#1: Process exited.",
 	}, logger.AllMessages())
+}
+
+func TestServiceCore_Dispatch_WithoutRouter_DropsCommand(t *testing.T) {
+	tests := []struct {
+		name      string
+		serviceID string
+		wantLog   string
+	}{
+		{
+			name:      "to a service",
+			serviceID: "Random",
+			wantLog:   `WARN Echo: Ignored command "hello" for service "Random": no router.`,
+		},
+		{
+			name:      "to the controller",
+			serviceID: "",
+			wantLog:   `WARN Echo: Ignored command "hello" for service "": no router.`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := diag.NewDebugLogger(10)
+			svc := NewEchoService(logger)
+			controller := NewServiceController(diag.NewDebugLogger(10))
+
+			assert.NotPanics(t, func() { svc.Dispatch(tt.serviceID, "hello", ExecParams{}) })
+			isSet := svc.SetRouter(controller)
+
+			assert.True(t, isSet)
+			assert.Equal(t, []string{tt.wantLog}, logger.AllMessages())
+			assert.Len(t, controller.i.MainChan, 0, "dropped command must not be delivered after SetRouter")
+		})
+	}
 }
 
 type EchoService struct {
@@ -365,12 +442,12 @@ func requireTaken(t *testing.T, svc Service, count int, release chan struct{}) {
 	}
 }
 
-// Wait until a Process routine of svc, which must be in background mode, exits, and fail the test unless one does.
+// Wait until the last Process routine of svc, which must be in background mode, exits, and fail the test unless it does.
 func requireExited(t *testing.T, svc *ServiceCoreInternal) {
 	t.Helper()
 	select {
 	case <-svc.ExitChan:
 	case <-time.After(workerTakeTimeout):
-		t.Fatal("no worker exited")
+		t.Fatal("service did not stop")
 	}
 }

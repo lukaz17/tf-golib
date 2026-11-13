@@ -91,6 +91,23 @@ func TestDownstreamService_Dispatch_ReachesRegisteredService(t *testing.T) {
 	}
 }
 
+func TestDownstreamService_SetBackground_SignalsStop(t *testing.T) {
+	svc := NewGreeterService(diag.NewDebugLogger(10))
+	svc.SetBackground(true)
+	svc.SetWorker(2)
+
+	svc.Exec("exit", multiplex.ExecParams{})
+	svc.Exec("exit", multiplex.ExecParams{})
+	select {
+	case <-svc.i.ExitChan:
+	case <-time.After(serviceTimeout):
+		t.Fatal("service did not signal its stop")
+	}
+
+	assert.Equal(t, uint64(0), svc.WorkerCount(), "mismatch worker count")
+	assert.Len(t, svc.i.ExitChan, 0, "one stop must send one signal")
+}
+
 // GreeterService is written the way a downstream project writes a service: it embeds ServiceCore and implements only the hook.
 type GreeterService struct {
 	multiplex.ServiceCore
