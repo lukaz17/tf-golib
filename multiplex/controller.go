@@ -88,6 +88,7 @@ func (s *ServiceController) coreProcessHook(workerID uint64, msg *ServiceMessage
 	extra, ok := msg.Extra.(*ControllerExtra)
 	if !ok || extra == nil {
 		s.i.Logger.Warnf("%s#%d: Ignored command %q: no target service.", s.i.ServiceID, workerID, msg.Command)
+		msg.Params.returnDropped()
 		return &HookState{Handled: true}
 	}
 	// Unlock before Exec, which blocks while target's queue is full.
@@ -96,6 +97,7 @@ func (s *ServiceController) coreProcessHook(workerID uint64, msg *ServiceMessage
 	s.servicesMu.RUnlock()
 	if !found {
 		s.i.Logger.Warnf("%s#%d: Ignored command %q: service %q is not registered.", s.i.ServiceID, workerID, msg.Command, extra.ServiceID)
+		msg.Params.returnDropped()
 		return &HookState{Handled: true}
 	}
 	service.Exec(msg.Command, msg.Params)

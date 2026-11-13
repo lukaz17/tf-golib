@@ -27,7 +27,7 @@ import (
 const (
 	// Number of pending requests a service supports.
 	MainChainCapacity = 256
-	// Number of pending requests a service supports.
+	// Number of unread stop signals ExitChan holds; signals beyond it are dropped.
 	ExtraChanCapacity = 16
 )
 
@@ -80,6 +80,8 @@ type ServiceCoreInternal struct {
 
 // Init ServiceCore internal and return the reference for later access.
 // processHook receives every request first; a nil HookState counts as not handled, like Handled false.
+// A request left unhandled, other than exit, is dropped with a warning: its sender receives ErrDropped unless the hook already returned a result.
+// An exit command left unhandled stops the Process routine that takes it: its sender receives nil once the routine has exited, unless the hook already returned a result.
 func (s *ServiceCore) InitServiceCore(serviceID string, logger diag.Logger, processHook func(workerID uint64, msg *ServiceMessage) *HookState) *ServiceCoreInternal {
 	if s.i != nil {
 		return s.i
@@ -161,10 +163,11 @@ func (s ServiceCore) Exec(command string, params ExecParams) {
 }
 
 // Request other service to handle the request via configurated Router.
-// Without a router, it logs a warning and drops the request; a later SetRouter does not deliver it.
+// Without a router, it logs a warning and drops the request, returning ErrDropped to its sender; a later SetRouter does not deliver it.
 func (s ServiceCore) Dispatch(serviceID string, command string, params ExecParams) {
 	if s.i.Router == nil {
 		s.i.Logger.Warnf("%s: Ignored command %q for service %q: no router.", s.i.ServiceID, command, serviceID)
+		params.returnDropped()
 		return
 	}
 	s.i.Router.Forward(serviceID, command, params)
@@ -173,6 +176,7 @@ func (s ServiceCore) Dispatch(serviceID string, command string, params ExecParam
 // Process routine to handle the request.
 func (s ServiceCore) process(workerID uint64, workerExitChan <-chan struct{}) {
 	s.i.Logger.Infof("%s#%d: Process started.", s.i.ServiceID, workerID)
+	var exitCommand *ServiceMessage
 	status := InitState
 	for status != ExitState {
 		select {
@@ -199,16 +203,24 @@ func (s ServiceCore) process(workerID uint64, workerExitChan <-chan struct{}) {
 		}
 		if msg.Command == "exit" {
 			s.processExitCommand()
+			exitCommand = msg
 			status = ExitState
 			continue
 		}
+		s.i.Logger.Warnf("%s#%d: Ignored command %q: not handled.", s.i.ServiceID, workerID, msg.Command)
+		msg.Params.returnDropped()
 	}
+
 	s.i.Logger.Infof("%s#%d: Process exited.", s.i.ServiceID, workerID)
 	s.i.servingWorkerCount.Lock()
 	s.i.runningWorkerCount--
 	isLastWorker := s.i.runningWorkerCount == 0
 	background := s.i.background
 	s.i.servingWorkerCount.Unlock()
+
+	if exitCommand != nil {
+		exitCommand.Params.returnIfUnanswered(nil)
+	}
 	if background && isLastWorker {
 		select {
 		case s.i.ExitChan <- true:

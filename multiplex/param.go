@@ -21,8 +21,13 @@
 package multiplex
 
 import (
+	"errors"
 	"sync"
+	"sync/atomic"
 )
+
+// ErrDropped is the result returned to a sender waiting for a request that was dropped instead of handled: dispatched without a router, sent to no service or to an unregistered one, or left unhandled by the receiving service's hook.
+var ErrDropped = errors.New("multiplex: request dropped")
 
 // ServiceMessage defines a request for processing by Service.
 type ServiceMessage struct {
@@ -88,13 +93,15 @@ func (m *ServiceMessage) ExpectReturnCustomSignal(signal *sync.WaitGroup) {
 	m.Params.ExpectReturnCustomSignal(signal)
 }
 
-// Set the returning result then signal listener that the request has been completed.
-// Nothing will be done if the sender doesn't expect returns.
+// Set the returning result then signal listener that the request has been completed, and report whether the sender receives result.
+// Like a return statement, the first answer ends the request: a later Return, including one after the service answered on its own, changes nothing and reports false.
+// Nothing will be done if the sender doesn't expect returns, and it reports false.
 // This is for recipient side.
-func (m *ServiceMessage) Return(result interface{}) {
+func (m *ServiceMessage) Return(result interface{}) bool {
 	if m.Params != nil {
-		m.Params.Return(result)
+		return m.Params.Return(result)
 	}
+	return false
 }
 
 // Listen to the signal.
@@ -106,7 +113,7 @@ func (m *ServiceMessage) Wait() {
 	}
 }
 
-// Listen to the signal and return received result.
+// Listen to the signal and return received result, or ErrDropped if the request was dropped.
 // The routine won't be blocked and receive nil if it doesn't expect returns.
 // This is for sender side.
 func (m *ServiceMessage) WaitForReturn() interface{} {
@@ -171,15 +178,22 @@ func (p ExecParams) ExpectReturnCustomSignal(signal *sync.WaitGroup) {
 	}
 }
 
-// Set the returning result then signal listener that the request has been completed.
-// Nothing will be done if the sender doesn't expect returns.
+// Set the returning result then signal listener that the request has been completed, and report whether the sender receives result.
+// Like a return statement, the first answer ends the request: a later Return, including one after the service answered on its own, changes nothing and reports false.
+// Nothing will be done if the sender doesn't expect returns, and it reports false.
 // This is for recipient side.
-func (p ExecParams) Return(result interface{}) {
-	if p["return"] != nil {
-		ret := p.Get("return", nil).(*ReturnParams)
-		ret.result = result
-		ret.signal.Done()
+func (p ExecParams) Return(result interface{}) bool {
+	if p["return"] == nil {
+		return false
 	}
+	ret := p.Get("return", nil).(*ReturnParams)
+	// Claim the request before writing result: concurrent answers must never both write it, or both signal, which panics.
+	if !atomic.CompareAndSwapInt32(&ret.returned, 0, 1) {
+		return false
+	}
+	ret.result = result
+	ret.signal.Done()
+	return true
 }
 
 // Listen to the signal.
@@ -192,7 +206,7 @@ func (p ExecParams) Wait() {
 	}
 }
 
-// Listen to the signal and return received result.
+// Listen to the signal and return received result, or ErrDropped if the request was dropped.
 // The routine won't be blocked and receive nil if it doesn't expect returns.
 // This is for sender side.
 func (p ExecParams) WaitForReturn() interface{} {
@@ -204,10 +218,21 @@ func (p ExecParams) WaitForReturn() interface{} {
 	return nil
 }
 
+// Return ErrDropped to the sender, unless the request already returned a result.
+func (p ExecParams) returnDropped() {
+	p.returnIfUnanswered(ErrDropped)
+}
+
+// Return result to the sender, unless the request already returned a result.
+func (p ExecParams) returnIfUnanswered(result interface{}) {
+	p.Return(result)
+}
+
 // ReturnParams comprises of a dyanmic type result and a signal for synchronous support.
 type ReturnParams struct {
-	signal *sync.WaitGroup
-	result interface{}
+	signal   *sync.WaitGroup
+	result   interface{}
+	returned int32 // 1 once Return was called; int32 for sync/atomic, as Go 1.18 has no atomic.Bool
 }
 
 // Return Singal of the param.

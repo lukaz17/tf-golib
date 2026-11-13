@@ -264,6 +264,7 @@ func TestServiceCore_Exec_NilHookState_CountsAsNotHandled(t *testing.T) {
 	assert.Equal(t, []string{
 		"INFO NilState#1: Process started.",
 		"INFO NilState#1: Message received: hello",
+		`WARN NilState#1: Ignored command "hello": not handled.`,
 		"INFO NilState#1: Message received: exit",
 		"INFO NilState#1: Process exited.",
 	}, logger.AllMessages())
@@ -322,7 +323,7 @@ func (s *EchoService) coreProcessHook(workerID uint64, msg *ServiceMessage) *Hoo
 }
 
 // HashService logs the SHA-256 of the "input" param for "sha256"; for "sha256_random", it hashes a value
-// requested from the Random service, then sends on the message's "hashed" channel.
+// requested from the Random service, then sends on the message's "hashed" channel, or logs a warning and sends nothing without a value.
 type HashService struct {
 	ServiceCore
 	i *ServiceCoreInternal
@@ -346,7 +347,13 @@ func (s *HashService) coreProcessHook(workerID uint64, msg *ServiceMessage) *Hoo
 		randomParams := ExecParams{}
 		randomParams.ExpectReturn()
 		s.Dispatch("Random", "", randomParams)
-		message := randomParams.WaitForReturn().(string)
+		randomResult := randomParams.WaitForReturn()
+		message, ok := randomResult.(string)
+		if !ok {
+			// Send nothing on "hashed": ShutdownService's timeout ends the run, and the test fails on its assertions instead of crashing.
+			s.i.Logger.Warnf("%s#%d: No value to hash: %v.", s.i.ServiceID, workerID, randomResult)
+			return &HookState{Handled: true}
+		}
 		messageBuf := []byte(message)
 		hashBuf := sha256.Sum256(messageBuf)
 		hash := hex.EncodeToString(hashBuf[:])
