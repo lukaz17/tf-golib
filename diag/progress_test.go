@@ -21,6 +21,7 @@
 package diag
 
 import (
+	"math"
 	"runtime"
 	"sync"
 	"testing"
@@ -191,6 +192,7 @@ func TestProgress_RemainTime_ProjectsElapsedTimeLinearly(t *testing.T) {
 		{name: "less than one item completed", total: 1, completed: 0.5},
 		{name: "fractional amounts", total: 10, completed: 1.9},
 		{name: "whole amounts", total: 100, completed: 25},
+		{name: "projection of over a century", total: 1e6, completed: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,6 +218,7 @@ func TestProgress_EstimatedTime_ProjectsElapsedTimeLinearly(t *testing.T) {
 		{name: "less than one item completed", total: 1, completed: 0.5},
 		{name: "fractional amounts", total: 10, completed: 1.9},
 		{name: "whole amounts", total: 100, completed: 25},
+		{name: "projection of over a century", total: 1e6, completed: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -228,6 +231,48 @@ func TestProgress_EstimatedTime_ProjectsElapsedTimeLinearly(t *testing.T) {
 			})
 
 			elapsed.assertScaledBy(t, estimated.Sub(p.started), tt.total/tt.completed)
+		})
+	}
+}
+
+func TestProgress_RemainTime_ClampsToLongestDuration(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     float64
+		completed float64
+	}{
+		{name: "projection beyond the longest duration", total: 1e18, completed: 1},
+		{name: "projection overflowing to infinity", total: 1, completed: 5e-324},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			p.Complete(tt.completed)
+
+			remain := p.RemainTime()
+
+			assert.Equal(t, time.Duration(math.MaxInt64), remain)
+		})
+	}
+}
+
+func TestProgress_EstimatedTime_ClampsToLongestDuration(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     float64
+		completed float64
+	}{
+		{name: "projection beyond the longest duration", total: 1e18, completed: 1},
+		{name: "projection overflowing to infinity", total: 1, completed: 5e-324},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := newProgressStartedAgo(tt.total, time.Hour)
+			p.Complete(tt.completed)
+
+			estimated := p.EstimatedTime()
+
+			assert.Equal(t, time.Duration(math.MaxInt64), estimated.Sub(p.started))
 		})
 	}
 }

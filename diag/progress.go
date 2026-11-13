@@ -21,6 +21,7 @@
 package diag
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -69,13 +70,14 @@ func (p *Progress) Complete(v float64) {
 }
 
 // Estimate when the Progress will be completed.
+// A projected duration beyond the longest time.Duration (~292 years) is clamped to it.
 func (p *Progress) EstimatedTime() time.Time {
 	cur := p.curVal.Value()
 	if cur == 0 {
 		return time.Now().AddDate(999, 0, 0)
 	}
 	passed := time.Since(p.started)
-	timeToComplete := time.Duration(float64(passed) / cur * p.ttlVal.Value())
+	timeToComplete := clampedDuration(float64(passed) / cur * p.ttlVal.Value())
 	return p.started.Add(timeToComplete)
 }
 
@@ -84,6 +86,7 @@ func (p *Progress) Percent() float64 {
 }
 
 // Estimate how long the Progress will be completed.
+// A projection beyond the longest time.Duration (~292 years) is clamped to it.
 func (p *Progress) RemainTime() time.Duration {
 	cur := p.curVal.Value()
 	if cur == 0 {
@@ -91,7 +94,7 @@ func (p *Progress) RemainTime() time.Duration {
 	}
 	passed := time.Since(p.started)
 	remain := p.ttlVal.Value() - cur
-	remainTime := time.Duration(float64(passed) / cur * remain)
+	remainTime := clampedDuration(float64(passed) / cur * remain)
 	return remainTime
 }
 
@@ -105,4 +108,14 @@ func (p *Progress) lastUpdated() time.Time {
 	p.updatedMu.Lock()
 	defer p.updatedMu.Unlock()
 	return p.updated
+}
+
+// Return the Duration of a projected number of nanoseconds, or the longest Duration for a projection beyond it.
+func clampedDuration(ns float64) time.Duration {
+	// float64(math.MaxInt64) rounds up to 2^63, the first value out of range.
+	// Projections are never below minus the elapsed time, so only the upper end can overflow.
+	if ns >= float64(math.MaxInt64) {
+		return math.MaxInt64
+	}
+	return time.Duration(ns)
 }
