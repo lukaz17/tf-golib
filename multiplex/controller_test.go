@@ -111,12 +111,19 @@ func TestServiceController_Unregister_WhileRunning(t *testing.T) {
 func TestServiceController_Run_Background(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewServiceController(logger)
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		svc.Exec("exit", ExecParams{})
-	}()
-	svc.Run(true)
-	time.Sleep(100 * time.Millisecond)
+	echo := NewEchoService(diag.NewDebugLogger(10))
+	echo.SetRouter(svc)
+	echo.SetWorker(1)
+	t.Cleanup(func() { echo.SetWorker(0) })
+	svc.Register(echo)
+	logged := make(chan struct{}, 1)
+	exited := runInBackground(svc)
+	svc.Dispatch(echo.ServiceID(), "", ExecParams{"message": "Hello, World!", "logged": logged})
+	requireSignal(t, logged, "controller did not route the message")
+
+	svc.Exec("exit", ExecParams{})
+	requireSignal(t, exited, "Run did not return after exit")
+
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 }
 
@@ -209,13 +216,11 @@ func TestServiceController_Dispatch(t *testing.T) {
 	echo.SetRouter(svc)
 	echo.SetWorker(1)
 	svc.Register(echo)
-	svc.Dispatch(echo.ServiceID(), "", ExecParams{"message": "Hello, World!"})
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		svc.Exec("exit", ExecParams{})
-	}()
+	logged := make(chan struct{}, 1)
+	svc.Dispatch(echo.ServiceID(), "", ExecParams{"message": "Hello, World!", "logged": logged})
+	svc.Exec("exit", ExecParams{})
 	svc.Run(true)
-	time.Sleep(100 * time.Millisecond)
+	requireSignal(t, logged, "message is not dispatched")
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 	assert.Equal(t, "INFO Echo#1: Message received: Hello, World!", logger2.LastMessage(), "message is not dispatched properly")
 }
@@ -238,8 +243,9 @@ func TestServiceController_Integration(t *testing.T) {
 	shutdown.SetRouter(svc)
 	shutdown.SetWorker(1)
 	svc.Register(shutdown)
-	svc.Dispatch("Hash", "sha256_random", ExecParams{})
-	svc.Dispatch("Shutdown", "", ExecParams{})
+	hashed := make(chan struct{}, 1)
+	svc.Dispatch("Hash", "sha256_random", ExecParams{"hashed": hashed})
+	svc.Dispatch("Shutdown", "", ExecParams{"after": hashed})
 	svc.Run(true)
 	assert.Equal(t, "INFO Controller#1: Process exited.", logger.LastMessage(), "routine not exited properly")
 	assert.Contains(t, logger2.LastMessage(), "INFO Hash#1: Value hashed: ", "invalid message")

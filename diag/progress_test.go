@@ -21,6 +21,7 @@
 package diag
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -158,7 +159,7 @@ func TestProgress_EstimatedTime(t *testing.T) {
 
 	// Test with some progress
 	p.Complete(25)
-	time.Sleep(10 * time.Millisecond) // Small delay to simulate work
+	backdateStart(p, time.Hour) // Simulate an hour of work
 	estimated = p.EstimatedTime()
 	assert.True(t, estimated.After(time.Now()))
 }
@@ -171,7 +172,7 @@ func TestProgress_RemainTime(t *testing.T) {
 
 	// Test with some progress
 	p.Complete(25)
-	time.Sleep(10 * time.Millisecond) // Small delay to simulate work
+	backdateStart(p, time.Hour) // Simulate an hour of work
 	remainTime := p.RemainTime()
 	assert.True(t, remainTime > 0)
 
@@ -326,7 +327,7 @@ func TestProgress_ConcurrentReadWrite(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 20; j++ {
 				p.Complete(1)
-				time.Sleep(time.Microsecond)
+				runtime.Gosched() // Let readers run between writes
 			}
 		}()
 	}
@@ -396,14 +397,15 @@ func TestProgress_TimeCalculations(t *testing.T) {
 	p := NewProgress(100)
 
 	// Test that estimated time changes as progress is made
+	// Steps of an hour, so the test's own run time can't tip the comparison below
 	p.Complete(10)
-	time.Sleep(25 * time.Millisecond)
+	backdateStart(p, time.Hour)
 
 	firstEstimate := p.EstimatedTime()
 	firstRemain := p.RemainTime()
 
 	p.Complete(10)
-	time.Sleep(25 * time.Millisecond)
+	backdateStart(p, time.Hour)
 
 	secondEstimate := p.EstimatedTime()
 	secondRemain := p.RemainTime()
@@ -433,8 +435,13 @@ func TestProgress_ZeroRemainTime(t *testing.T) {
 // so its projections cover a known elapsed time without sleeping.
 func newProgressStartedAgo(total float64, elapsed time.Duration) *Progress {
 	p := NewProgress(total)
-	p.started = time.Now().Add(-elapsed)
+	backdateStart(p, elapsed)
 	return p
+}
+
+// Move the start of p elapsed further into the past, as if elapsed passed, without sleeping.
+func backdateStart(p *Progress, elapsed time.Duration) {
+	p.started = p.started.Add(-elapsed)
 }
 
 // elapsedRange bounds the time elapsed since a Progress started, as read by a call.

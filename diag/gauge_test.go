@@ -21,6 +21,7 @@
 package diag
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 
@@ -161,7 +162,7 @@ func TestGauge_Value(t *testing.T) {
 func TestGauge_ConcurrentOperations(t *testing.T) {
 	g := NewGauge(0)
 	numGoroutines := 100
-	numOperations := 1000
+	numOperations := 100 // At 1000, go1.18's race detector spends ~8s on the contended atomics.
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 4) // 4 types of operations
@@ -224,7 +225,10 @@ func TestGauge_ConcurrentReadWrite(t *testing.T) {
 				case <-done:
 					return
 				default:
-					g.Value() // Just read, don't assert specific value due to concurrent writes
+					// Just read, don't assert specific value due to concurrent writes
+					g.Value()
+					// Without yielding, spinning readers slow the writers' CAS loops for seconds under -race.
+					runtime.Gosched()
 				}
 			}
 		}()

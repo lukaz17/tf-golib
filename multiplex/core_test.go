@@ -94,7 +94,6 @@ func TestServiceCore_Worker(t *testing.T) {
 	assert.Equal(t, uint64(0), svc.WorkerCount(), "mismatch worker count")
 	svc.SetWorker(17)
 	assert.Equal(t, uint64(17), svc.WorkerCount(), "mismatch worker count")
-	time.Sleep(100 * time.Millisecond)
 	svc.SetWorker(10)
 	assert.Equal(t, uint64(10), svc.WorkerCount(), "mismatch worker count")
 }
@@ -224,10 +223,12 @@ func TestServiceCore_Exec(t *testing.T) {
 	logger := diag.NewDebugLogger(10)
 	svc := NewEchoService(logger)
 	svc.SetWorker(1)
+	logged := make(chan struct{}, 1)
 	svc.Exec("", ExecParams{
 		"message": "Hello, World!",
+		"logged":  logged,
 	})
-	time.Sleep(10 * time.Millisecond)
+	requireSignal(t, logged, "message not logged")
 	assert.Equal(t, "INFO Echo#1: Message received: Hello, World!", logger.LastMessage(), "invalid message")
 }
 
@@ -301,6 +302,7 @@ func TestServiceCore_Dispatch_WithoutRouter_DropsCommand(t *testing.T) {
 	}
 }
 
+// EchoService logs the "message" param of every message, then sends on the message's "logged" channel.
 type EchoService struct {
 	ServiceCore
 	i *ServiceCoreInternal
@@ -315,9 +317,12 @@ func NewEchoService(logger diag.Logger) *EchoService {
 func (s *EchoService) coreProcessHook(workerID uint64, msg *ServiceMessage) *HookState {
 	message := msg.Params["message"].(string)
 	s.i.Logger.Infof("%s#%d: Message received: %s", s.i.ServiceID, workerID, message)
+	msg.Params["logged"].(chan struct{}) <- struct{}{}
 	return &HookState{Handled: true}
 }
 
+// HashService logs the SHA-256 of the "input" param for "sha256"; for "sha256_random", it hashes a value
+// requested from the Random service, then sends on the message's "hashed" channel.
 type HashService struct {
 	ServiceCore
 	i *ServiceCoreInternal
@@ -346,6 +351,7 @@ func (s *HashService) coreProcessHook(workerID uint64, msg *ServiceMessage) *Hoo
 		hashBuf := sha256.Sum256(messageBuf)
 		hash := hex.EncodeToString(hashBuf[:])
 		s.i.Logger.Infof("%s#%d: Value hashed: %s.", s.i.ServiceID, workerID, hash)
+		msg.Params["hashed"].(chan struct{}) <- struct{}{}
 	}
 	return &HookState{Handled: true}
 }
@@ -385,11 +391,14 @@ func NewRandomService(logger diag.Logger) *RandomService {
 
 func (s *RandomService) coreProcessHook(workerID uint64, msg *ServiceMessage) *HookState {
 	hex := securerng.Hex(16)
-	msg.Return(hex)
+	// Log before returning, so a sender that got the value also sees the log.
 	s.i.Logger.Infof("%s#%d: Value randomed: %s.", s.i.ServiceID, workerID, hex)
+	msg.Return(hex)
 	return &HookState{Handled: true}
 }
 
+// ShutdownService sends an exit command to the controller once the message's "after" channel signals,
+// or after workerTakeTimeout if it never does.
 type ShutdownService struct {
 	ServiceCore
 	i *ServiceCoreInternal
@@ -402,8 +411,10 @@ func NewShutdownService(logger diag.Logger) *ShutdownService {
 }
 
 func (s *ShutdownService) coreProcessHook(workerID uint64, msg *ServiceMessage) *HookState {
-	timeout := msg.GetParam("timeout", int64(100*time.Millisecond)).(int64)
-	time.Sleep(time.Duration(timeout))
+	select {
+	case <-msg.Params["after"].(chan struct{}):
+	case <-time.After(workerTakeTimeout): // Stop anyway, so a missing signal fails the test instead of hanging Run.
+	}
 	s.Dispatch("", "exit", ExecParams{})
 	return &HookState{Handled: true}
 }
@@ -449,5 +460,15 @@ func requireExited(t *testing.T, svc *ServiceCoreInternal) {
 	case <-svc.ExitChan:
 	case <-time.After(workerTakeTimeout):
 		t.Fatal("service did not stop")
+	}
+}
+
+// Wait for a signal on signal, and fail the test with failure unless it arrives.
+func requireSignal(t *testing.T, signal <-chan struct{}, failure string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(workerTakeTimeout):
+		t.Fatal(failure)
 	}
 }

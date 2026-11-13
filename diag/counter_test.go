@@ -162,7 +162,7 @@ func TestCounter_Value(t *testing.T) {
 func TestCounter_ConcurrentOperations(t *testing.T) {
 	c := NewCounter(0)
 	numGoroutines := 100
-	numOperations := 1000
+	numOperations := 100 // At 1000, go1.18's race detector spends ~1s on the contended atomics.
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 4) // 4 types of operations
