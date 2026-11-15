@@ -168,12 +168,14 @@ func (l *DebugLogger) AllReverse() []*LogContext {
 	defer l.i.LogMu.Unlock()
 	cap := l.i.Cache.Len()
 	contexts := []*LogContext{}
+	// walk a local copy: l.i.Cache is the write position
+	entry := l.i.Cache
 	for i := 0; i < cap; i++ {
-		if l.i.Cache.Value == nil {
+		if entry.Value == nil {
 			break
 		}
-		contexts = append(contexts, l.i.Cache.Value.(*LogContext))
-		l.i.Cache = l.i.Cache.Prev()
+		contexts = append(contexts, entry.Value.(*LogContext))
+		entry = entry.Prev()
 	}
 	return contexts
 }
@@ -184,12 +186,14 @@ func (l *DebugLogger) AllMessagesReverse() []string {
 	defer l.i.LogMu.Unlock()
 	cap := l.i.Cache.Len()
 	messages := []string{}
+	// walk a local copy: l.i.Cache is the write position
+	entry := l.i.Cache
 	for i := 0; i < cap; i++ {
-		if l.i.Cache.Value == nil {
+		if entry.Value == nil {
 			break
 		}
-		messages = append(messages, l.i.Cache.Value.(*LogContext).Message)
-		l.i.Cache = l.i.Cache.Prev()
+		messages = append(messages, entry.Value.(*LogContext).Message)
+		entry = entry.Prev()
 	}
 	return messages
 }

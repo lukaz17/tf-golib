@@ -23,112 +23,90 @@ package diag
 import (
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDebugLogger_Error(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Error(errors.New("invalid"), "Message")
 	output := logger.LastMessage()
-	if output != "ERROR invalid Message" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "ERROR invalid Message", output)
 }
 
 func TestDebugLogger_Errorf(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Errorf(errors.New("invalid"), "%s", "Messagef")
 	output := logger.LastMessage()
-	if output != "ERROR invalid Messagef" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "ERROR invalid Messagef", output)
 }
 
 func TestDebugLogger_Warn(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Warn("Message")
 	output := logger.LastMessage()
-	if output != "WARN Message" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "WARN Message", output)
 }
 
 func TestDebugLogger_Warnf(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Warnf("%s", "Messagef")
 	output := logger.LastMessage()
-	if output != "WARN Messagef" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "WARN Messagef", output)
 }
 
 func TestDebugLogger_Info(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Info("Message")
 	output := logger.LastMessage()
-	if output != "INFO Message" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "INFO Message", output)
 }
 
 func TestDebugLogger_Infof(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Infof("%s", "Messagef")
 	output := logger.LastMessage()
-	if output != "INFO Messagef" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "INFO Messagef", output)
 }
 
 func TestDebugLogger_Debug(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Debug("Message")
 	output := logger.LastMessage()
-	if output != "DEBUG Message" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "DEBUG Message", output)
 }
 
 func TestDebugLogger_Debugf(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Debugf("%s", "Messagef")
 	output := logger.LastMessage()
-	if output != "DEBUG Messagef" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "DEBUG Messagef", output)
 }
 
 func TestDebugLogger_Trace(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Trace("Message")
 	output := logger.LastMessage()
-	if output != "TRACE Message" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "TRACE Message", output)
 }
 
 func TestDebugLogger_Tracef(t *testing.T) {
 	logger := NewDebugLogger(10)
 	logger.Tracef("%s", "Messagef")
 	output := logger.LastMessage()
-	if output != "TRACE Messagef" {
-		t.Errorf("Unexpected log output: %s", output)
-	}
+	assert.Equal(t, "TRACE Messagef", output)
 }
 
 func TestDebugLogger_Last_Empty(t *testing.T) {
 	logger := NewDebugLogger(10)
 	output := logger.Last()
-	if output != nil {
-		t.Errorf("Expected nil output for empty logger, got: %v", output)
-	}
+	assert.Nil(t, output)
 }
 
 func TestDebugLogger_LastMessage_Empty(t *testing.T) {
 	logger := NewDebugLogger(10)
 	output := logger.LastMessage()
-	if output != "" {
-		t.Errorf("Expected empty output for empty logger, got: %v", output)
-	}
+	assert.Empty(t, output)
 }
 
 func TestDebugLogger_All(t *testing.T) {
@@ -139,15 +117,11 @@ func TestDebugLogger_All(t *testing.T) {
 	logger.Info("Message 4")
 
 	contexts := logger.All()
-	if len(contexts) != 4 {
-		t.Errorf("Expected 4 log contexts, got: %d", len(contexts))
-	}
+	assert.Len(t, contexts, 4)
 
 	expectedMessages := []string{"INFO Message 1", "WARN Message 2", "DEBUG Message 3", "INFO Message 4"}
 	for i, ctx := range contexts {
-		if ctx.Message != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], ctx.Message)
-		}
+		assert.Equal(t, expectedMessages[i], ctx.Message)
 	}
 }
 
@@ -159,15 +133,11 @@ func TestDebugLogger_All_Overflown(t *testing.T) {
 	logger.Info("Message 4")
 
 	contexts := logger.All()
-	if len(contexts) != 3 {
-		t.Errorf("Expected 3 log contexts, got: %d", len(contexts))
-	}
+	assert.Len(t, contexts, 3)
 
 	expectedMessages := []string{"WARN Message 2", "DEBUG Message 3", "INFO Message 4"}
 	for i, ctx := range contexts {
-		if ctx.Message != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], ctx.Message)
-		}
+		assert.Equal(t, expectedMessages[i], ctx.Message)
 	}
 }
 
@@ -179,15 +149,11 @@ func TestDebugLogger_AllMessages(t *testing.T) {
 	logger.Info("Message 4")
 
 	messages := logger.AllMessages()
-	if len(messages) != 4 {
-		t.Errorf("Expected 4 log messages, got: %d", len(messages))
-	}
+	assert.Len(t, messages, 4)
 
 	expectedMessages := []string{"INFO Message 1", "WARN Message 2", "DEBUG Message 3", "INFO Message 4"}
 	for i, msg := range messages {
-		if msg != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], msg)
-		}
+		assert.Equal(t, expectedMessages[i], msg)
 	}
 }
 
@@ -199,15 +165,11 @@ func TestDebugLogger_AllMessages_Overflown(t *testing.T) {
 	logger.Info("Message 4")
 
 	messages := logger.AllMessages()
-	if len(messages) != 3 {
-		t.Errorf("Expected 3 log messages, got: %d", len(messages))
-	}
+	assert.Len(t, messages, 3)
 
 	expectedMessages := []string{"WARN Message 2", "DEBUG Message 3", "INFO Message 4"}
 	for i, msg := range messages {
-		if msg != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], msg)
-		}
+		assert.Equal(t, expectedMessages[i], msg)
 	}
 }
 
@@ -219,15 +181,11 @@ func TestDebugLogger_AllReverse(t *testing.T) {
 	logger.Info("Message 4")
 
 	contexts := logger.AllReverse()
-	if len(contexts) != 4 {
-		t.Errorf("Expected 4 log contexts, got: %d", len(contexts))
-	}
+	assert.Len(t, contexts, 4)
 
 	expectedMessages := []string{"INFO Message 4", "DEBUG Message 3", "WARN Message 2", "INFO Message 1"}
 	for i, ctx := range contexts {
-		if ctx.Message != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], ctx.Message)
-		}
+		assert.Equal(t, expectedMessages[i], ctx.Message)
 	}
 }
 
@@ -239,16 +197,33 @@ func TestDebugLogger_AllReverse_Overflown(t *testing.T) {
 	logger.Info("Message 4")
 
 	contexts := logger.AllReverse()
-	if len(contexts) != 3 {
-		t.Errorf("Expected 3 log contexts, got: %d", len(contexts))
-	}
+	assert.Len(t, contexts, 3)
 
 	expectedMessages := []string{"INFO Message 4", "DEBUG Message 3", "WARN Message 2"}
 	for i, ctx := range contexts {
-		if ctx.Message != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], ctx.Message)
-		}
+		assert.Equal(t, expectedMessages[i], ctx.Message)
 	}
+}
+
+func TestDebugLogger_AllReverse_KeepsLastMessage(t *testing.T) {
+	logger := NewDebugLogger(5)
+	logger.Info("Message 1")
+	logger.Info("Message 2")
+
+	_ = logger.AllReverse()
+
+	assert.Equal(t, "INFO Message 2", logger.LastMessage())
+}
+
+func TestDebugLogger_AllReverse_KeepsOldestMessageOnNextWrite(t *testing.T) {
+	logger := NewDebugLogger(5)
+	logger.Info("Message 1")
+	logger.Info("Message 2")
+	_ = logger.AllReverse()
+
+	logger.Info("Message 3")
+
+	assert.Equal(t, []string{"INFO Message 1", "INFO Message 2", "INFO Message 3"}, logger.AllMessages())
 }
 
 func TestDebugLogger_AllMessagesReverse(t *testing.T) {
@@ -259,15 +234,11 @@ func TestDebugLogger_AllMessagesReverse(t *testing.T) {
 	logger.Info("Message 4")
 
 	messages := logger.AllMessagesReverse()
-	if len(messages) != 4 {
-		t.Errorf("Expected 4 log messages, got: %d", len(messages))
-	}
+	assert.Len(t, messages, 4)
 
 	expectedMessages := []string{"INFO Message 4", "DEBUG Message 3", "WARN Message 2", "INFO Message 1"}
 	for i, msg := range messages {
-		if msg != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], msg)
-		}
+		assert.Equal(t, expectedMessages[i], msg)
 	}
 }
 
@@ -279,14 +250,31 @@ func TestDebugLogger_AllMessagesReverse_Overflown(t *testing.T) {
 	logger.Info("Message 4")
 
 	messages := logger.AllMessagesReverse()
-	if len(messages) != 3 {
-		t.Errorf("Expected 3 log messages, got: %d", len(messages))
-	}
+	assert.Len(t, messages, 3)
 
 	expectedMessages := []string{"INFO Message 4", "DEBUG Message 3", "WARN Message 2"}
 	for i, msg := range messages {
-		if msg != expectedMessages[i] {
-			t.Errorf("Expected message '%s', got: '%s'", expectedMessages[i], msg)
-		}
+		assert.Equal(t, expectedMessages[i], msg)
 	}
+}
+
+func TestDebugLogger_AllMessagesReverse_KeepsLastMessage(t *testing.T) {
+	logger := NewDebugLogger(5)
+	logger.Info("Message 1")
+	logger.Info("Message 2")
+
+	_ = logger.AllMessagesReverse()
+
+	assert.Equal(t, "INFO Message 2", logger.LastMessage())
+}
+
+func TestDebugLogger_AllMessagesReverse_KeepsOldestMessageOnNextWrite(t *testing.T) {
+	logger := NewDebugLogger(5)
+	logger.Info("Message 1")
+	logger.Info("Message 2")
+	_ = logger.AllMessagesReverse()
+
+	logger.Info("Message 3")
+
+	assert.Equal(t, []string{"INFO Message 1", "INFO Message 2", "INFO Message 3"}, logger.AllMessages())
 }
