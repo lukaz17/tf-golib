@@ -66,7 +66,7 @@ func NewFileNameFromStr(path string) *FileName {
 	}
 }
 
-// Make a deep copy of this Path.
+// Make a deep copy of this FileName.
 func (s *FileName) Clone() *FileName {
 	return &FileName{
 		Prefix:    s.Prefix,
@@ -122,11 +122,17 @@ func NewPathFromStr(path string) *Path {
 	}
 }
 
-// Make a deep copy of this Path.
+// Make a deep copy of this Path. Nil Parents or Name stay nil in the copy.
 func (s *Path) Clone() *Path {
-	directories := make([]string, len(s.Parents))
-	_ = copy(s.Parents, directories)
-	name := s.Name.Clone()
+	var directories []string
+	if s.Parents != nil {
+		directories = make([]string, len(s.Parents))
+		_ = copy(directories, s.Parents)
+	}
+	var name *FileName
+	if s.Name != nil {
+		name = s.Name.Clone()
+	}
 	return &Path{
 		Parents: directories,
 		Name:    name,
