@@ -1,12 +1,27 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package diag
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 
@@ -147,7 +162,7 @@ func TestGauge_Value(t *testing.T) {
 func TestGauge_ConcurrentOperations(t *testing.T) {
 	g := NewGauge(0)
 	numGoroutines := 100
-	numOperations := 1000
+	numOperations := 100 // At 1000, go1.18's race detector spends ~8s on the contended atomics.
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 4) // 4 types of operations
@@ -210,15 +225,21 @@ func TestGauge_ConcurrentReadWrite(t *testing.T) {
 				case <-done:
 					return
 				default:
-					g.Value() // Just read, don't assert specific value due to concurrent writes
+					// Just read, don't assert specific value due to concurrent writes
+					g.Value()
+					// Without yielding, spinning readers slow the writers' CAS loops for seconds under -race.
+					runtime.Gosched()
 				}
 			}
 		}()
 	}
 
 	// Writer goroutines
+	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for j := 0; j < 100; j++ {
 				g.Inc()
 				g.Dec()
@@ -229,7 +250,6 @@ func TestGauge_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	// Let it run for a bit
-	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package strfmt
 
@@ -19,8 +33,6 @@ var PATH_SEPARATOR = string(os.PathSeparator)
 
 // A FileName is struct contains name and extension of a file or folder.
 // Extension should have dot at the beginning.
-//
-// Available since v0.2.0
 type FileName struct {
 	Prefix    string
 	Name      string
@@ -29,8 +41,6 @@ type FileName struct {
 }
 
 // Create a new FileName from scratch
-//
-// Available since v0.2.0
 func NewFileName(name, extension string) *FileName {
 	return &FileName{
 		Name:      name,
@@ -39,8 +49,6 @@ func NewFileName(name, extension string) *FileName {
 }
 
 // Parse path string to create a new FileName
-//
-// Available since v0.2.0
 func NewFileNameFromStr(path string) *FileName {
 	nPath := NormalizePath(path)
 	base := filepath.Base(nPath)
@@ -59,8 +67,6 @@ func NewFileNameFromStr(path string) *FileName {
 }
 
 // Make a deep copy of this Path.
-//
-// Available since v0.2.0
 func (s *FileName) Clone() *FileName {
 	return &FileName{
 		Prefix:    s.Prefix,
@@ -71,15 +77,11 @@ func (s *FileName) Clone() *FileName {
 }
 
 // Return full name represented by this FileName.
-//
-// Available since v0.2.0
 func (s *FileName) FullName() string {
 	return s.Prefix + s.Name + s.Suffix + s.Extension
 }
 
 // Check whether two FileNames are equal.
-//
-// Available since v0.2.0
 func AreEqualFileNames(x, y *FileName) bool {
 	if x == nil && y == nil {
 		return true
@@ -94,16 +96,12 @@ func AreEqualFileNames(x, y *FileName) bool {
 }
 
 // A Path is a struct contains all smallest components of a path.
-//
-// Available since v0.2.0
 type Path struct {
 	Parents []string
 	Name    *FileName
 }
 
 // Create a new Path from scratch
-//
-// Available since v0.2.0
 func NewPath(dirs []string, name *FileName) *Path {
 	return &Path{
 		Parents: dirs,
@@ -112,8 +110,6 @@ func NewPath(dirs []string, name *FileName) *Path {
 }
 
 // Parse path string to create a new Path
-//
-// Available since v0.2.0
 func NewPathFromStr(path string) *Path {
 	nPath := NormalizePath(path)
 	dir, file := filepath.Split(nPath)
@@ -127,8 +123,6 @@ func NewPathFromStr(path string) *Path {
 }
 
 // Make a deep copy of this Path.
-//
-// Available since v0.2.0
 func (s *Path) Clone() *Path {
 	directories := make([]string, len(s.Parents))
 	_ = copy(s.Parents, directories)
@@ -141,8 +135,6 @@ func (s *Path) Clone() *Path {
 
 // Check a Path is whether asbsolute path. Using the same rule as
 // filepath.IsAbs
-//
-// Available since v0.2.0
 func (s *Path) IsAbsolute() bool {
 	if isEmptySlice(s.Parents) {
 		return false
@@ -152,8 +144,6 @@ func (s *Path) IsAbsolute() bool {
 }
 
 // Return full path represented by this Path.
-//
-// Available since v0.2.0
 func (s *Path) FullPath() string {
 	if isEmptySlice(s.Parents) {
 		return s.Name.FullName()
@@ -162,15 +152,11 @@ func (s *Path) FullPath() string {
 }
 
 // Return parent path represented by this Path.
-//
-// Available since v0.2.0
 func (s *Path) ParentPath() string {
 	return ternary(isEmptySlice(s.Parents), "", strings.Join(s.Parents, PATH_SEPARATOR))
 }
 
 // Check whether two Paths are equal.
-//
-// Available since v0.2.0
 func AreEqualPaths(x, y *Path) bool {
 	if x == nil && y == nil {
 		return true
@@ -186,8 +172,6 @@ func AreEqualPaths(x, y *Path) bool {
 // - Replace all slashes to backslashes if run on Windows.
 // - Replace all backslashes to slashes if run on all UNIX-like OSes.
 // - Clean the path.
-//
-// Available since v0.2.0
 func NormalizePath(path string) string {
 	nPath := ternary(multiarch.IsWindows(),
 		strings.ReplaceAll(path, "/", "\\"),

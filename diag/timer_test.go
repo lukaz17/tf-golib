@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package diag
 
@@ -28,8 +42,9 @@ func TestNewTimer(t *testing.T) {
 
 	// Initial duration should be very small (close to 0)
 	duration := timer.Duration()
+	elapsed := time.Since(before)
 	assert.True(t, duration >= 0)
-	assert.True(t, duration < time.Millisecond) // Should be very fast
+	assert.True(t, duration <= elapsed) // No more than the time since before NewTimer
 }
 
 func TestTimer_Duration(t *testing.T) {
@@ -39,8 +54,8 @@ func TestTimer_Duration(t *testing.T) {
 	duration1 := timer.Duration()
 	assert.True(t, duration1 >= 0)
 
-	// Wait a bit and test again
-	time.Sleep(10 * time.Millisecond)
+	// Let a bit of time pass and test again
+	backdateCreated(timer, 10*time.Millisecond)
 	duration2 := timer.Duration()
 
 	// Second duration should be larger
@@ -48,7 +63,7 @@ func TestTimer_Duration(t *testing.T) {
 	assert.True(t, duration2 >= 10*time.Millisecond)
 
 	// Test with longer delay
-	time.Sleep(20 * time.Millisecond)
+	backdateCreated(timer, 20*time.Millisecond)
 	duration3 := timer.Duration()
 
 	// Third duration should be even larger
@@ -63,7 +78,7 @@ func TestTimer_DurationProgression(t *testing.T) {
 	// Collect durations over time
 	for i := 0; i < 5; i++ {
 		durations = append(durations, timer.Duration())
-		time.Sleep(5 * time.Millisecond)
+		backdateCreated(timer, 5*time.Millisecond)
 	}
 
 	// Each duration should be greater than the previous
@@ -83,19 +98,10 @@ func TestTimer_ConcurrentAccess(t *testing.T) {
 	numGoroutines := 50
 	results := make([]time.Duration, numGoroutines)
 
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
-
-	// Concurrent access to Duration method
-	for i := 0; i < numGoroutines; i++ {
-		go func(index int) {
-			defer wg.Done()
-			time.Sleep(time.Duration(index) * time.Microsecond) // Stagger slightly
-			results[index] = timer.Duration()
-		}(i)
-	}
-
-	wg.Wait()
+	// Concurrent access to Duration method, in two waves with time passing between them
+	readDurationsConcurrently(timer, results[:numGoroutines/2])
+	backdateCreated(timer, time.Millisecond)
+	readDurationsConcurrently(timer, results[numGoroutines/2:])
 
 	// All results should be valid (non-negative)
 	for i, duration := range results {
@@ -112,20 +118,18 @@ func TestTimer_ConcurrentAccess(t *testing.T) {
 }
 
 func TestTimer_MultipleTimers(t *testing.T) {
-	// Create multiple timers at different times
+	// Create multiple timers at different times: 5ms apart, the last one 5ms ago
 	timer1 := NewTimer()
-	time.Sleep(5 * time.Millisecond)
-
 	timer2 := NewTimer()
-	time.Sleep(5 * time.Millisecond)
-
 	timer3 := NewTimer()
-	time.Sleep(5 * time.Millisecond)
+	backdateCreated(timer1, 15*time.Millisecond)
+	backdateCreated(timer2, 10*time.Millisecond)
+	backdateCreated(timer3, 5*time.Millisecond)
 
-	// Get durations
-	duration1 := timer1.Duration()
-	duration2 := timer2.Duration()
+	// Get durations, latest timer first, so time spent between reads only widens the gaps
 	duration3 := timer3.Duration()
+	duration2 := timer2.Duration()
+	duration1 := timer1.Duration()
 
 	// First timer should have longest duration
 	assert.True(t, duration1 > duration2)
@@ -156,7 +160,7 @@ func TestTimer_RealisticScenario(t *testing.T) {
 
 	var stepDurations []time.Duration
 	for _, step := range workSteps {
-		time.Sleep(step)
+		backdateCreated(timer, step)
 		stepDurations = append(stepDurations, timer.Duration())
 	}
 
@@ -176,19 +180,21 @@ func TestTimer_RealisticScenario(t *testing.T) {
 }
 
 func TestTimer_ZeroDuration(t *testing.T) {
+	before := time.Now()
 	timer := NewTimer()
 
 	// Immediate duration check should be very small but non-negative
 	duration := timer.Duration()
+	elapsed := time.Since(before)
 	assert.True(t, duration >= 0)
-	assert.True(t, duration < time.Millisecond)
+	assert.True(t, duration <= elapsed) // No more than the time since before NewTimer
 }
 
 func TestTimer_LongDuration(t *testing.T) {
 	timer := NewTimer()
 
-	// Wait a longer period
-	time.Sleep(50 * time.Millisecond)
+	// Let a longer period pass
+	backdateCreated(timer, 50*time.Millisecond)
 
 	duration := timer.Duration()
 	assert.True(t, duration >= 50*time.Millisecond)
@@ -196,7 +202,7 @@ func TestTimer_LongDuration(t *testing.T) {
 
 func TestTimer_ConsistentReads(t *testing.T) {
 	timer := NewTimer()
-	time.Sleep(10 * time.Millisecond)
+	backdateCreated(timer, 10*time.Millisecond)
 
 	// Multiple consecutive reads should return increasing or equal values
 	var durations []time.Duration
@@ -237,16 +243,34 @@ func TestTimer_Precision(t *testing.T) {
 	timer := NewTimer()
 
 	// Test precision with small delays
-	time.Sleep(10 * time.Millisecond)
+	backdateCreated(timer, 10*time.Millisecond)
 	duration1 := timer.Duration()
 
-	time.Sleep(10 * time.Millisecond)
+	backdateCreated(timer, 10*time.Millisecond)
 	duration2 := timer.Duration()
 
 	// Second duration should be detectably larger
 	assert.True(t, duration2 > duration1)
 
-	// Difference should be reasonable (around 1ms, but allowing for system variance)
+	// Difference should cover the 10ms that passed between the reads
 	diff := duration2 - duration1
-	assert.True(t, diff >= 10*time.Microsecond) // At least 10ms
+	assert.True(t, diff >= 10*time.Millisecond) // At least 10ms
+}
+
+// Move the creation of timer elapsed further into the past, as if elapsed passed, without sleeping.
+func backdateCreated(timer *Timer, elapsed time.Duration) {
+	timer.created = timer.created.Add(-elapsed)
+}
+
+// Fill durations with reads of timer's Duration, one goroutine per read, and wait for all of them.
+func readDurationsConcurrently(timer *Timer, durations []time.Duration) {
+	var wg sync.WaitGroup
+	wg.Add(len(durations))
+	for i := range durations {
+		go func(index int) {
+			defer wg.Done()
+			durations[index] = timer.Duration()
+		}(i)
+	}
+	wg.Wait()
 }

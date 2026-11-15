@@ -1,13 +1,28 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package diag
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,7 +162,7 @@ func TestCounter_Value(t *testing.T) {
 func TestCounter_ConcurrentOperations(t *testing.T) {
 	c := NewCounter(0)
 	numGoroutines := 100
-	numOperations := 1000
+	numOperations := 100 // At 1000, go1.18's race detector spends ~1s on the contended atomics.
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 4) // 4 types of operations
@@ -217,8 +232,11 @@ func TestCounter_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	// Writer goroutines
+	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			for j := 0; j < 100; j++ {
 				c.Inc()
 				c.Dec()
@@ -229,7 +247,6 @@ func TestCounter_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	// Let it run for a bit
-	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -243,6 +260,59 @@ func TestCounter_ConcurrentReadWrite(t *testing.T) {
 
 	// Final value should be close to initial (1000) since Inc/Dec and Add/Sub cancel out
 	assert.InDelta(t, 1000.0, c.Value(), 1.0)
+}
+
+func TestCounter_Value_ReturnsOnlyHeldValuesDuringWrites(t *testing.T) {
+	tests := []struct {
+		name  string
+		cycle func(c *Counter)
+		held  map[float64]bool
+	}{
+		{
+			name:  "set between increments",
+			cycle: func(c *Counter) { c.Set(0); c.Inc() },
+			held:  map[float64]bool{0: true, 1: true},
+		},
+		{
+			name:  "fractional adds between whole adds",
+			cycle: func(c *Counter) { c.Add(0.5); c.Add(-0.5); c.Inc(); c.Dec() },
+			held:  map[float64]bool{0: true, 0.5: true, 1: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const writerCycles = 100000
+			const readerCount = 4
+			c := NewCounter(0)
+			var unheldReads int64
+			done := make(chan struct{})
+			var readers sync.WaitGroup
+			for i := 0; i < readerCount; i++ {
+				readers.Add(1)
+				go func() {
+					defer readers.Done()
+					for {
+						select {
+						case <-done:
+							return
+						default:
+							if !tt.held[c.Value()] {
+								atomic.AddInt64(&unheldReads, 1)
+							}
+						}
+					}
+				}()
+			}
+
+			for i := 0; i < writerCycles; i++ {
+				tt.cycle(c)
+			}
+			close(done)
+			readers.Wait()
+
+			assert.Zero(t, unheldReads, "reads of a value the counter never held")
+		})
+	}
 }
 
 func TestCounter_EdgeCases(t *testing.T) {

@@ -1,8 +1,22 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package multiplex
 
@@ -11,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestServiceMessageInitialization(t *testing.T) {
@@ -72,6 +87,48 @@ func TestServiceMessage_Return(t *testing.T) {
 		msg.Return("result")
 	}()
 	assert.Equal(t, "result", msg.WaitForReturn(), "Return should set the result and signal completion")
+}
+
+func TestServiceMessage_Return_ReportsDelivery(t *testing.T) {
+	tests := []struct {
+		name          string
+		arrange       func(msg *ServiceMessage)
+		wantDelivered bool
+		wantResult    interface{}
+	}{
+		{
+			name:          "first answer reaches the sender",
+			arrange:       func(m *ServiceMessage) { m.ExpectReturn() },
+			wantDelivered: true,
+			wantResult:    "answer",
+		},
+		{
+			name: "answer after another Return is discarded",
+			arrange: func(m *ServiceMessage) {
+				m.ExpectReturn()
+				m.Return("earlier")
+			},
+			wantDelivered: false,
+			wantResult:    "earlier",
+		},
+		{
+			name:          "answer to a message without params is discarded",
+			arrange:       func(*ServiceMessage) {},
+			wantDelivered: false,
+			wantResult:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := &ServiceMessage{}
+			tt.arrange(msg)
+
+			delivered := msg.Return("answer")
+
+			assert.Equal(t, tt.wantDelivered, delivered)
+			assert.Equal(t, tt.wantResult, msg.WaitForReturn())
+		})
+	}
 }
 
 func TestServiceMessage_WaitForReturn_NoReturn(t *testing.T) {
@@ -161,6 +218,109 @@ func TestExecParams_Return(t *testing.T) {
 	assert.Equal(t, "result", params.WaitForReturn(), "Return should set the result and signal completion")
 }
 
+func TestExecParams_Return_ReportsDelivery(t *testing.T) {
+	tests := []struct {
+		name          string
+		arrange       func(params ExecParams)
+		wantDelivered bool
+		wantResult    interface{}
+	}{
+		{
+			name:          "first answer reaches the sender",
+			arrange:       func(p ExecParams) { p.ExpectReturn() },
+			wantDelivered: true,
+			wantResult:    "answer",
+		},
+		{
+			name: "answer after another Return is discarded",
+			arrange: func(p ExecParams) {
+				p.ExpectReturn()
+				p.Return("earlier")
+			},
+			wantDelivered: false,
+			wantResult:    "earlier",
+		},
+		{
+			name: "answer after the service dropped the request is discarded",
+			arrange: func(p ExecParams) {
+				p.ExpectReturn()
+				p.returnDropped()
+			},
+			wantDelivered: false,
+			wantResult:    ErrDropped,
+		},
+		{
+			name:          "answer to a request expecting none is discarded",
+			arrange:       func(ExecParams) {},
+			wantDelivered: false,
+			wantResult:    nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := ExecParams{}
+			tt.arrange(params)
+
+			delivered := params.Return("answer")
+
+			assert.Equal(t, tt.wantDelivered, delivered)
+			assert.Equal(t, tt.wantResult, params.WaitForReturn())
+		})
+	}
+}
+
+func TestExecParams_Return_ConcurrentAnswersReachSenderOnce(t *testing.T) {
+	// Each round gives the answers a fresh chance to interleave; correct code passes every round.
+	const rounds = 1000
+	tests := []struct {
+		name          string
+		returnAnswers int
+		dropAnswers   int
+	}{
+		{name: "answers through Return", returnAnswers: 4},
+		{name: "answer through Return against the worker's fallback", returnAnswers: 1, dropAnswers: 1},
+		{name: "answers through the worker's fallback", dropAnswers: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for round := 0; round < rounds; round++ {
+				params := ExecParams{}
+				params.ExpectReturn()
+				delivered := make(chan interface{}, tt.returnAnswers)
+				answers := []func(){}
+				for i := 0; i < tt.returnAnswers; i++ {
+					answer := i
+					answers = append(answers, func() {
+						if params.Return(answer) {
+							delivered <- answer
+						}
+					})
+				}
+				for i := 0; i < tt.dropAnswers; i++ {
+					answers = append(answers, params.returnDropped)
+				}
+
+				panics := answerConcurrently(answers)
+				// A second signal leaves the sender's WaitGroup negative, and WaitForReturn would then block forever.
+				require.Empty(t, panics, "round %d: request was answered more than once", round)
+				result := params.WaitForReturn()
+				close(delivered)
+
+				winners := []interface{}{}
+				for answer := range delivered {
+					winners = append(winners, answer)
+				}
+				require.LessOrEqual(t, len(winners), 1, "round %d: more than one Return reported its answer delivered", round)
+				want := interface{}(ErrDropped)
+				if len(winners) == 1 {
+					want = winners[0]
+				}
+				require.Equal(t, want, result, "round %d: sender must receive the answer reported delivered", round)
+			}
+		})
+	}
+}
+
 func TestExecParams_WaitForReturn_NoReturn(t *testing.T) {
 	params := ExecParams{}
 	assert.Nil(t, params.WaitForReturn(), "WaitForReturn should return nil if no return is expected")
@@ -175,4 +335,32 @@ func TestReturnParams_Signal(t *testing.T) {
 func TestReturnParams_Result(t *testing.T) {
 	retParams := ReturnParams{result: "testResult"}
 	assert.Equal(t, "testResult", retParams.Result(), "Result should return the correct result")
+}
+
+// Run each answer on its own goroutine, all released at once, and return the panics they raised.
+func answerConcurrently(answers []func()) []interface{} {
+	start := make(chan struct{})
+	raised := make(chan interface{}, len(answers))
+	var wg sync.WaitGroup
+	for _, answer := range answers {
+		wg.Add(1)
+		go func(answer func()) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					raised <- r
+				}
+			}()
+			<-start
+			answer()
+		}(answer)
+	}
+	close(start)
+	wg.Wait()
+	close(raised)
+	panics := []interface{}{}
+	for r := range raised {
+		panics = append(panics, r)
+	}
+	return panics
 }

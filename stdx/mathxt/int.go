@@ -1,16 +1,28 @@
-// Copyright (C) 2025 T-Force I/O
+// Copyright (c) 2025 T-Force I/O
 //
-// TF GoLib is licensed under the MIT license.
-// You should receive a copy of MIT along with this software.
-// If not, see <https://opensource.org/license/mit>
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 package mathxt
 
 /* --- INT --- */
 
 // Return the absolute value of x for int.
-//
-// Available since v0.6.0
 func AbsInt(x int) int {
 	if x < 0 {
 		return -x
@@ -19,8 +31,6 @@ func AbsInt(x int) int {
 }
 
 // Return the smaller of x or y for int.
-//
-// Available since v0.6.0
 func MinInt(x int, y ...int) int {
 	min := x
 	for _, v := range y {
@@ -32,8 +42,6 @@ func MinInt(x int, y ...int) int {
 }
 
 // Return the larger of x or y for int.
-//
-// Available since v0.6.0
 func MaxInt(x int, y ...int) int {
 	max := x
 	for _, v := range y {
@@ -47,8 +55,6 @@ func MaxInt(x int, y ...int) int {
 /* --- INT8 --- */
 
 // Return the absolute value of x for int8.
-//
-// Available since v0.6.0
 func AbsInt8(x int8) int8 {
 	if x < 0 {
 		return -x
@@ -57,8 +63,6 @@ func AbsInt8(x int8) int8 {
 }
 
 // Return the smaller of x or y for int8.
-//
-// Available since v0.6.0
 func MinInt8(x int8, y ...int8) int8 {
 	min := x
 	for _, v := range y {
@@ -70,8 +74,6 @@ func MinInt8(x int8, y ...int8) int8 {
 }
 
 // Return the larger of x or y for int8.
-//
-// Available since v0.6.0
 func MaxInt8(x int8, y ...int8) int8 {
 	max := x
 	for _, v := range y {
@@ -85,8 +87,6 @@ func MaxInt8(x int8, y ...int8) int8 {
 /* --- INT16 --- */
 
 // Return the absolute value of x for int16.
-//
-// Available since v0.6.0
 func AbsInt16(x int16) int16 {
 	if x < 0 {
 		return -x
@@ -95,8 +95,6 @@ func AbsInt16(x int16) int16 {
 }
 
 // Return the smaller of x or y for int16.
-//
-// Available since v0.6.0
 func MinInt16(x int16, y ...int16) int16 {
 	min := x
 	for _, v := range y {
@@ -108,8 +106,6 @@ func MinInt16(x int16, y ...int16) int16 {
 }
 
 // Return the larger of x or y for int16.
-//
-// Available since v0.6.0
 func MaxInt16(x int16, y ...int16) int16 {
 	max := x
 	for _, v := range y {
@@ -123,8 +119,6 @@ func MaxInt16(x int16, y ...int16) int16 {
 /* --- INT32 --- */
 
 // Return the absolute value of x for int32.
-//
-// Available since v0.6.0
 func AbsInt32(x int32) int32 {
 	if x < 0 {
 		return -x
@@ -133,8 +127,6 @@ func AbsInt32(x int32) int32 {
 }
 
 // Return the smaller of x or y for int32.
-//
-// Available since v0.6.0
 func MinInt32(x int32, y ...int32) int32 {
 	min := x
 	for _, v := range y {
@@ -146,8 +138,6 @@ func MinInt32(x int32, y ...int32) int32 {
 }
 
 // Return the larger of x or y for int32.
-//
-// Available since v0.6.0
 func MaxInt32(x int32, y ...int32) int32 {
 	max := x
 	for _, v := range y {
@@ -161,8 +151,6 @@ func MaxInt32(x int32, y ...int32) int32 {
 /* --- INT64 --- */
 
 // Return the absolute value of x for int64.
-//
-// Available since v0.6.0
 func AbsInt64(x int64) int64 {
 	if x < 0 {
 		return -x
@@ -171,8 +159,6 @@ func AbsInt64(x int64) int64 {
 }
 
 // Return the smaller of x or y for int64.
-//
-// Available since v0.6.0
 func MinInt64(x int64, y ...int64) int64 {
 	min := x
 	for _, v := range y {
@@ -184,8 +170,6 @@ func MinInt64(x int64, y ...int64) int64 {
 }
 
 // Return the larger of x or y for int64.
-//
-// Available since v0.6.0
 func MaxInt64(x int64, y ...int64) int64 {
 	max := x
 	for _, v := range y {
